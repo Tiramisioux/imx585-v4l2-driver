@@ -1091,25 +1091,41 @@ static const struct v4l2_ctrl_config imx585_cfg_grad_th = {
 	.elem_size = sizeof(u32),
 };
 
+/*
+ * Per IMX585 AppNote §4.3 / Rev1.0 page 16:
+ *
+ *   ACMP1_EXP @ 0x36EE controls the MIDDLE compression segment (between
+ *   CCMP1_EXP and CCMP2_EXP). Allowed values: 06h..0Bh (1/64..1/2048).
+ *   ACMP2_EXP @ 0x36EC controls the HIGH segment (above CCMP2_EXP).
+ *   Allowed values: 00h..05h (1/1..1/32).
+ *
+ * Writing a value outside the allowed range puts the sensor into a degenerate
+ * state and the output ends up clamped at BLC. The original driver defaults
+ * had these the wrong way round (idx 2 = "1/4" written to ACMP1 — prohibited),
+ * which produced all-BLC frames in 12-bit ClearHDR mode.
+ *
+ * GRAD_COMP_L writes ACMP1_EXP (middle slope, aggressive ratios).
+ * GRAD_COMP_H writes ACMP2_EXP (high slope, mild ratios).
+ */
 static const struct v4l2_ctrl_config imx585_cfg_grad_exp_l = {
 	.ops   = &imx585_ctrl_ops,
 	.id    = V4L2_CID_IMX585_HDR_GRAD_COMP_L,
-	.name  = "HDR Gradient Compression Ratio Low",
+	.name  = "HDR Gradient Compression Ratio Middle (ACMP1)",
 	.type  = V4L2_CTRL_TYPE_MENU,
-	.min   = 0,
+	.min   = 6,                                          /* spec lower bound for ACMP1 */
 	.max   = ARRAY_SIZE(grad_compression_slope_menu) - 1,
-	.def   = 2,
+	.def   = 6,                                          /* 1/64 */
 	.qmenu = grad_compression_slope_menu,
 };
 
 static const struct v4l2_ctrl_config imx585_cfg_grad_exp_h = {
 	.ops   = &imx585_ctrl_ops,
 	.id    = V4L2_CID_IMX585_HDR_GRAD_COMP_H,
-	.name  = "HDR Gradient Compression Ratio High",
+	.name  = "HDR Gradient Compression Ratio High (ACMP2)",
 	.type  = V4L2_CTRL_TYPE_MENU,
 	.min   = 0,
-	.max   = ARRAY_SIZE(grad_compression_slope_menu) - 1,
-	.def   = 6,
+	.max   = 5,                                          /* spec upper bound for ACMP2 */
+	.def   = 2,                                          /* 1/4 */
 	.qmenu = grad_compression_slope_menu,
 };
 
