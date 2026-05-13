@@ -433,13 +433,19 @@ static const struct cci_reg_sequence common_clearHDR_mode[] = {
 	{ CCI_REG8(0x4940), 0x41 }, /* 12-bit HDR */
 	{ CCI_REG8(0x3081), 0x02 }, /* EXP_GAIN: +12 dB default */
 	/*
-	 * AppNote-default HG/LG selection thresholds (§4.2, page 15). With
-	 * EXP_TH_H = EXP_TH_L = 0x1000, the HG/LG combiner falls back to the
-	 * EXP_BK weighted blend (default 0x00 = HG 1/2, LG 1/2).
+	 * HG/LG selection thresholds (§4.2, page 15).
+	 *
+	 * The AppNote's "initial value" of EXP_TH_H = EXP_TH_L = 0x1000
+	 * documents a fallback to the EXP_BK weighted blend, but empirically
+	 * that path leaves the combiner output clamped near BLC for typical
+	 * scenes (verified at LED 5500K @ 80% on this rig: HDR-16 DNG max
+	 * stays at ~4200 with TH_H=TH_L=0x1000, vs ~36000 with TH_H=0xFFF /
+	 * TH_L=0). Use the rule-based selection range instead so HG drives
+	 * the bulk of the output and LG only takes over once HG saturates.
 	 */
-	{ CCI_REG8(0x36d0), 0x00 }, { CCI_REG8(0x36d1), 0x10 }, /* EXP_TH_H = 0x1000 */
-	{ CCI_REG8(0x36d4), 0x00 }, { CCI_REG8(0x36d5), 0x10 }, /* EXP_TH_L = 0x1000 */
-	{ CCI_REG8(0x36e2), 0x00 },                              /* EXP_BK   = HG 1/2, LG 1/2 */
+	{ CCI_REG8(0x36d0), 0xFF }, { CCI_REG8(0x36d1), 0x0F }, /* EXP_TH_H = 0x0FFF (HG saturation cutoff) */
+	{ CCI_REG8(0x36d4), 0x00 }, { CCI_REG8(0x36d5), 0x00 }, /* EXP_TH_L = 0x0000 (no low cutoff) */
+	{ CCI_REG8(0x36e2), 0x00 },                              /* EXP_BK   = HG 1/2, LG 1/2 (only used in overlap) */
 	/*
 	 * Spec-valid CCMP gradation-compression slopes (§4.3, page 16). These
 	 * must land in their register's allowed range or the sensor output
@@ -1068,11 +1074,15 @@ static const struct v4l2_ctrl_ops imx585_ctrl_ops = {
  *   th[1] -> EXP_TH_L (0x36D4): high-gain "low" cutoff
  * Constraint: EXP_TH_H >= EXP_TH_L (the spec marks EXP_TH_H < EXP_TH_L
  * as "Prohibited" — the sensor enters an invalid state and only outputs
- * the BLC pedestal). Default to the AppNote initial value (0x1000 each
- * = thresholds equal, blend off) so unconfigured HDR still produces a
- * valid frame.
+ * the BLC pedestal).
+ *
+ * The AppNote's "initial value" of 0x1000 each (= thresholds equal,
+ * EXP_BK weighted blend) clamps the combiner output near BLC on
+ * typical scenes — empirically verified on this rig. Default to a wide
+ * rule-based selection range so HG drives normal exposure values and
+ * LG only kicks in once HG saturates near 0x0FFF.
  */
-static const u16 hdr_thresh_def[2] = { 0x1000, 0x1000 };
+static const u16 hdr_thresh_def[2] = { 0x0FFF, 0x0000 };
 static const struct v4l2_ctrl_config imx585_cfg_datasel_th = {
 	.ops       = &imx585_ctrl_ops,
 	.id        = V4L2_CID_IMX585_HDR_DATASEL_TH,
