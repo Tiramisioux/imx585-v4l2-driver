@@ -242,17 +242,20 @@ static const char * const hdr_gain_adder_menu[] = {
 	"+0dB", "+6dB", "+12dB", "+18dB", "+24dB", "+29.1dB",
 };
 
-/* Keep the order as in datasheet, there are two 50/50 for some reasons */
+/*
+ * EXP_BK register values per AppNote §4.2 page 15. Indices 0-7 are valid;
+ * higher values are "Setting Prohibited". Spec lists two 50/50 entries
+ * (indices 0 and 4) — keep both, label them clearly.
+ */
 static const char * const hdr_data_blender_menu[] = {
-	"HG 1/2, LG 1/2",
-	"HG 3/4, LG 1/4",
-	"HG 1/2, LG 1/2",
-	"HG 7/8, LG 1/8",
-	"HG 15/16, LG 1/16",
-	"2nd HG 1/2, LG 1/2",
-	"HG 1/16, LG 15/16",
-	"HG 1/8, LG 7/8",
-	"HG 1/4, LG 3/4",
+	"HG 1/2, LG 1/2",                /* 0h */
+	"HG 3/4, LG 1/4",                /* 1h */
+	"HG 7/8, LG 1/8",                /* 2h */
+	"HG 15/16, LG 1/16",             /* 3h */
+	"HG 1/2, LG 1/2 (alt)",          /* 4h */
+	"HG 1/16, LG 15/16",             /* 5h */
+	"HG 1/8, LG 7/8",                /* 6h */
+	"HG 1/4, LG 3/4",                /* 7h */
 };
 
 static const char * const grad_compression_slope_menu[] = {
@@ -418,7 +421,7 @@ static const struct cci_reg_sequence common_regs[] = {
 
 static const struct cci_reg_sequence common_clearHDR_mode[] = {
 	{ CCI_REG8(0x301a), 0x10 }, /* WDMODE: Clear HDR */
-	{ CCI_REG8(0x3024), 0x02 }, /* COMBI_EN */
+	{ CCI_REG8(0x3024), 0x02 }, /* COMBI_EN: with built-in combination */
 	{ CCI_REG8(0x3069), 0x02 },
 	{ CCI_REG8(0x3074), 0x63 },
 	{ CCI_REG8(0x3930), 0xe6 }, /* DUR[15:8] (12-bit) */
@@ -429,6 +432,22 @@ static const struct cci_reg_sequence common_clearHDR_mode[] = {
 	{ CCI_REG8(0x493c), 0x41 }, /* 10-bit HDR */
 	{ CCI_REG8(0x4940), 0x41 }, /* 12-bit HDR */
 	{ CCI_REG8(0x3081), 0x02 }, /* EXP_GAIN: +12 dB default */
+	/*
+	 * AppNote-default HG/LG selection thresholds (§4.2, page 15). With
+	 * EXP_TH_H = EXP_TH_L = 0x1000, the HG/LG combiner falls back to the
+	 * EXP_BK weighted blend (default 0x00 = HG 1/2, LG 1/2).
+	 */
+	{ CCI_REG8(0x36d0), 0x00 }, { CCI_REG8(0x36d1), 0x10 }, /* EXP_TH_H = 0x1000 */
+	{ CCI_REG8(0x36d4), 0x00 }, { CCI_REG8(0x36d5), 0x10 }, /* EXP_TH_L = 0x1000 */
+	{ CCI_REG8(0x36e2), 0x00 },                              /* EXP_BK   = HG 1/2, LG 1/2 */
+	/*
+	 * Spec-valid CCMP gradation-compression slopes (§4.3, page 16). These
+	 * must land in their register's allowed range or the sensor output
+	 * clamps at BLC. ACMP1 (middle segment) must be 06h..0Bh; ACMP2 (high
+	 * segment) must be 00h..05h.
+	 */
+	{ CCI_REG8(0x36ec), 0x02 }, /* ACMP2_EXP = 1/4   (high   slope) */
+	{ CCI_REG8(0x36ee), 0x06 }, /* ACMP1_EXP = 1/64  (middle slope) */
 };
 
 static const struct cci_reg_sequence common_normal_mode[] = {
