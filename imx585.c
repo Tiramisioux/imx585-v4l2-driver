@@ -1043,7 +1043,17 @@ static const struct v4l2_ctrl_ops imx585_ctrl_ops = {
 	.s_ctrl = imx585_set_ctrl,
 };
 
-static const u16 hdr_thresh_def[2] = { 512, 1024 };
+/*
+ * ClearHDR threshold register order (per IMX585 AppNote, §4.2):
+ *   th[0] -> EXP_TH_H (0x36D0): high-gain saturation cutoff
+ *   th[1] -> EXP_TH_L (0x36D4): high-gain "low" cutoff
+ * Constraint: EXP_TH_H >= EXP_TH_L (the spec marks EXP_TH_H < EXP_TH_L
+ * as "Prohibited" — the sensor enters an invalid state and only outputs
+ * the BLC pedestal). Default to the AppNote initial value (0x1000 each
+ * = thresholds equal, blend off) so unconfigured HDR still produces a
+ * valid frame.
+ */
+static const u16 hdr_thresh_def[2] = { 0x1000, 0x1000 };
 static const struct v4l2_ctrl_config imx585_cfg_datasel_th = {
 	.ops       = &imx585_ctrl_ops,
 	.id        = V4L2_CID_IMX585_HDR_DATASEL_TH,
