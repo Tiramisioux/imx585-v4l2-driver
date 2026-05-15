@@ -566,8 +566,6 @@ static const struct cci_reg_sequence common_normal_mode[] = {
 #define IMX585_WIN_CROP_REGS_16BIT \
 	IMX585_WIN_CROP_REGS_COMMON, \
 	{ IMX585_REG_PIX_VWIDTH, 2180 }  /* active + 20 to compensate for OB prepend */
-/* Backward-compat alias for the existing mode_*_regs_12bit tables. */
-#define IMX585_WIN_CROP_REGS IMX585_WIN_CROP_REGS_12BIT
 
 /* All-pixel 4K, 12-bit */
 static const struct cci_reg_sequence mode_4k_regs_12bit[] = {
@@ -575,7 +573,7 @@ static const struct cci_reg_sequence mode_4k_regs_12bit[] = {
 	{ CCI_REG8(0x3022), 0x02 }, /* ADBIT 12-bit */
 	{ CCI_REG8(0x3023), 0x01 }, /* MDBIT 12-bit */
 	{ CCI_REG8(0x30d5), 0x04 }, /* DIG_CLP_VSTART non-binning */
-	IMX585_WIN_CROP_REGS,
+	IMX585_WIN_CROP_REGS_12BIT,
 };
 
 /* 2x2 binned 1080p, 12-bit */
@@ -584,7 +582,7 @@ static const struct cci_reg_sequence mode_1080_regs_12bit[] = {
 	{ CCI_REG8(0x3022), 0x02 }, /* ADBIT 12-bit */
 	{ CCI_REG8(0x3023), 0x01 }, /* MDBIT 12-bit */
 	{ CCI_REG8(0x30d5), 0x02 }, /* DIG_CLP_VSTART binning */
-	IMX585_WIN_CROP_REGS,
+	IMX585_WIN_CROP_REGS_12BIT,
 };
 
 /*
@@ -858,8 +856,7 @@ static inline void get_mode_table(struct imx585 *imx585, unsigned int code,
 		if (code == MEDIA_BUS_FMT_Y16_1X16 && imx585->clear_hdr) {
 			*mode_list = &supported_modes[2];     /* 4K 16-bit */
 			*num_modes = 1;
-		}
-		if (code == MEDIA_BUS_FMT_Y12_1X12) {
+		} else if (code == MEDIA_BUS_FMT_Y12_1X12) {
 			if (imx585->clear_hdr) {
 				*mode_list = &supported_modes[1]; /* 4K 12-bit */
 				*num_modes = 1;
@@ -1851,7 +1848,7 @@ static int imx585_get_selection(struct v4l2_subdev *sd,
 	case V4L2_SEL_TGT_CROP_DEFAULT:
 		/*
 		 * Active recording area = buffer dimensions, since the sensor
-		 * is configured (via WINMODE crop, see IMX585_WIN_CROP_REGS)
+		 * is configured (via WINMODE crop, see IMX585_WIN_CROP_REGS_*)
 		 * to skip OB rows/cols at readout. Buffer holds active pixels
 		 * only.
 		 */
