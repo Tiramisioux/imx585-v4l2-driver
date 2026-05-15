@@ -90,10 +90,17 @@
 #define IMX585_REG_HMAX                 CCI_REG16_LE(0x302c)
 #define IMX585_HMAX_MAX                 0xffff
 
-/* SHR internal (coarse exposure) */
+/*
+ * SHR0 (3050h) — coarse shutter sweep time (lines).
+ *
+ * AppNote page 5 "List of Setting Register": SHR0 minimum is "More than
+ * 8h" in Normal mode and "More than 10h" in Clear HDR mode (= 16
+ * decimal). Driver previously used 10 decimal in HDR which is below
+ * spec.
+ */
 #define IMX585_REG_SHR                  CCI_REG24_LE(0x3050)
 #define IMX585_SHR_MIN                  8
-#define IMX585_SHR_MIN_HDR              10
+#define IMX585_SHR_MIN_HDR              16   /* AppNote §5 page 5 */
 #define IMX585_SHR_MAX                  0xfffff
 
 /* Exposure control (lines) */
@@ -126,8 +133,16 @@
 #define IMX585_REG_FDG_SEL0             CCI_REG8(0x3030)
 #define IMX585_ANA_GAIN_MIN_NORMAL      0
 #define IMX585_ANA_GAIN_MIN_HCG         34
-#define IMX585_ANA_GAIN_MAX_HDR         80
 #define IMX585_ANA_GAIN_MAX_NORMAL      240
+/*
+ * AppNote page 5 "List of Setting Register": GAIN range is 00h..50h
+ * (0..80 decimal) — covers all modes including Clear HDR. The §5 page
+ * 18 sum constraint `9.6dB ≤ GAIN + EXP_GAIN ≤ 29.1dB` for built-in
+ * combination, with EXP_GAIN=12dB default, gives GAIN ≤ 17.1dB =
+ * register 57. Use 80 here as the absolute register cap (the IPA owns
+ * the per-mode tuning of the actual usable range above 57 if it cares).
+ */
+#define IMX585_ANA_GAIN_MAX_HDR         80
 #define IMX585_ANA_GAIN_STEP            1
 #define IMX585_ANA_GAIN_DEFAULT         0
 
@@ -175,9 +190,31 @@ static const int imx585_tpg_val[] = {
 #define IMX585_NATIVE_WIDTH             3856U
 #define IMX585_NATIVE_HEIGHT            2180U
 #define IMX585_PIXEL_ARRAY_LEFT         8U
-#define IMX585_PIXEL_ARRAY_TOP          8U
 #define IMX585_PIXEL_ARRAY_WIDTH        3840U
 #define IMX585_PIXEL_ARRAY_HEIGHT       2160U
+/*
+ * AppNote §3.1 page 8 ("Image Data output format") puts the OB region
+ * at the top of the visible buffer:
+ *   All-pixel:   H4 (Ignored OB) = 10 + H5 (Vertical effective OB) = 10
+ *                → 20 rows of OB before the recording area.
+ *   Binning:     H4 = 5 + H5 = 5 → 10 rows of OB.
+ *
+ * In Clear HDR, the OB rows contain stuck pixels that latch at the
+ * HG saturation value (~35968) and would render as a speckle band /
+ * black bar at the top of the JPEG if included in the active crop.
+ * In SDR the same rows blend into the scene and aren't visible. The
+ * crop offsets below skip both kinds of OB out of the active area.
+ */
+/*
+ * Per-mode crop top: skip the OB rows. AppNote §3.1 page 8 lists 20
+ * OB rows for All-pixel (H4=10 + H5=10) and 10 for binning (H4=H5=5)
+ * at the top of the visible buffer. Use the OB count directly — the
+ * buffer height equals per-mode top + recording area exactly (4K:
+ * 20 + 2160 = 2180, binned: 10 + 1080 = 1090), so the BE's ScalerCrop
+ * fits with no extra padding above or below.
+ */
+#define IMX585_PIXEL_ARRAY_TOP_4K       20U
+#define IMX585_PIXEL_ARRAY_TOP_BIN      10U
 
 /* Link frequency setup */
 enum {
@@ -452,7 +489,7 @@ static const struct cci_reg_sequence common_clearHDR_mode[] = {
 	 * clamps at BLC. ACMP1 (middle segment) must be 06h..0Bh; ACMP2 (high
 	 * segment) must be 00h..05h.
 	 */
-	{ CCI_REG8(0x36ec), 0x02 }, /* ACMP2_EXP = 1/4   (high   slope) */
+	{ CCI_REG8(0x36ec), 0x04 }, /* ACMP2_EXP = 1/16  (high slope; natural inverse spans 16-bit, no LUT stretch needed) */
 	{ CCI_REG8(0x36ee), 0x06 }, /* ACMP1_EXP = 1/64  (middle slope) */
 };
 
@@ -518,10 +555,10 @@ static struct imx585_mode supported_modes[] = {
 		.min_hmax = 366,            /* overwritten at runtime */
 		.min_vmax = IMX585_VMAX_DEFAULT,
 		.crop = {
-			.left = IMX585_PIXEL_ARRAY_LEFT,
-			.top = IMX585_PIXEL_ARRAY_TOP,
-			.width = IMX585_PIXEL_ARRAY_WIDTH,
-			.height = IMX585_PIXEL_ARRAY_HEIGHT,
+			.left = IMX585_PIXEL_ARRAY_LEFT / 2,
+			.top = IMX585_PIXEL_ARRAY_TOP_BIN,
+			.width = IMX585_PIXEL_ARRAY_WIDTH / 2,
+			.height = IMX585_PIXEL_ARRAY_HEIGHT / 2,
 		},
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_1080_regs_12bit),
@@ -537,7 +574,7 @@ static struct imx585_mode supported_modes[] = {
 		.min_vmax = IMX585_VMAX_DEFAULT,
 		.crop = {
 			.left = IMX585_PIXEL_ARRAY_LEFT,
-			.top = IMX585_PIXEL_ARRAY_TOP,
+			.top = IMX585_PIXEL_ARRAY_TOP_4K,
 			.width = IMX585_PIXEL_ARRAY_WIDTH,
 			.height = IMX585_PIXEL_ARRAY_HEIGHT,
 		},
@@ -696,25 +733,42 @@ static inline void get_mode_table(struct imx585 *imx585, unsigned int code,
 	*num_modes = 0;
 
 	if (imx585->mono) {
-		/* --- Mono paths --- */
+		/* --- Mono paths ---
+		 * Y16 only valid in Clear HDR. Skip binning entry — see the
+		 * 16-bit color-path comment below for why. */
 		if (code == MEDIA_BUS_FMT_Y16_1X16 && imx585->clear_hdr) {
-			*mode_list = supported_modes;
-			*num_modes = ARRAY_SIZE(supported_modes);
+			*mode_list = &supported_modes[1];     /* 4K all-pixel only */
+			*num_modes = ARRAY_SIZE(supported_modes) - 1;
 		}
 		if (code == MEDIA_BUS_FMT_Y12_1X12) {
-			*mode_list = supported_modes;
-			*num_modes = ARRAY_SIZE(supported_modes);
+			if (imx585->clear_hdr) {
+				*mode_list = &supported_modes[1];
+				*num_modes = ARRAY_SIZE(supported_modes) - 1;
+			} else {
+				*mode_list = supported_modes;
+				*num_modes = ARRAY_SIZE(supported_modes);
+			}
 		}
 	} else {
 		/* --- Color paths --- */
 		switch (code) {
-		/* 16-bit (Clear HDR linear, available only when WDR=1) */
+		/* 16-bit (Clear HDR linear, only valid when WDR=1).
+		 *
+		 * Skip the binning mode (supported_modes[0]). Empirically,
+		 * 1928×1090 binned Clear HDR returns BLC-only frames above
+		 * an integration ceiling around ET≈3.3 ms (out of a 40 ms
+		 * 25 fps frame), independent of requested framerate. 4K
+		 * all-pixel Clear HDR does not show this. The mechanism and
+		 * exact SHR0/VMAX/HMAX relationship are not documented in
+		 * the AppNote/SRM — only expose 4K Clear HDR until the
+		 * binned-mode constraint is identified.
+		 */
 		case MEDIA_BUS_FMT_SRGGB16_1X16:
 		case MEDIA_BUS_FMT_SGRBG16_1X16:
 		case MEDIA_BUS_FMT_SGBRG16_1X16:
 		case MEDIA_BUS_FMT_SBGGR16_1X16:
-			*mode_list = supported_modes;
-			*num_modes = ARRAY_SIZE(supported_modes);
+			*mode_list = &supported_modes[1];     /* 4K all-pixel only */
+			*num_modes = ARRAY_SIZE(supported_modes) - 1;
 			break;
 
 		/* 12-bit. Per AppNote §2 page 6, the 1920×1080 binning mode in
@@ -1167,7 +1221,7 @@ static const struct v4l2_ctrl_config imx585_cfg_grad_exp_h = {
 	.type  = V4L2_CTRL_TYPE_MENU,
 	.min   = 0,
 	.max   = 5,                                          /* spec upper bound for ACMP2 */
-	.def   = 2,                                          /* 1/4 */
+	.def   = 4,                                          /* 1/16 — natural inverse spans 16-bit cleanly */
 	.qmenu = grad_compression_slope_menu,
 };
 
@@ -1417,6 +1471,16 @@ static int imx585_set_pad_format(struct v4l2_subdev *sd,
 		imx585_set_framing_limits(imx585, mode);
 
 	*format = fmt->format;
+
+	/*
+	 * Sync the per-mode crop into the subdev state so libcamera reads
+	 * the right active area for ScalerCrop bounds when the mode changes
+	 * (otherwise the crop stays at whatever init_state set, which is
+	 * mode 0). Per-mode crop matters because the OB offsets at the top
+	 * of the visible buffer differ between binning (10 rows) and 4K
+	 * all-pixel (20 rows) — see IMX585_PIXEL_ARRAY_TOP_BIN/4K.
+	 */
+	*v4l2_subdev_state_get_crop(sd_state, 0) = mode->crop;
 	return 0;
 }
 
@@ -1660,8 +1724,14 @@ static int imx585_get_selection(struct v4l2_subdev *sd,
 		return 0;
 	case V4L2_SEL_TGT_CROP_DEFAULT:
 	case V4L2_SEL_TGT_CROP_BOUNDS:
+		/*
+		 * Maximum reachable crop = the smaller per-mode TOP (binning).
+		 * The 4K mode's larger TOP is still within these bounds and
+		 * is reported via V4L2_SEL_TGT_CROP from the active subdev
+		 * state (per-mode crop set in imx585_set_pad_format).
+		 */
 		sel->r.left = IMX585_PIXEL_ARRAY_LEFT;
-		sel->r.top = IMX585_PIXEL_ARRAY_TOP;
+		sel->r.top = IMX585_PIXEL_ARRAY_TOP_BIN;
 		sel->r.width = IMX585_PIXEL_ARRAY_WIDTH;
 		sel->r.height = IMX585_PIXEL_ARRAY_HEIGHT;
 		return 0;
