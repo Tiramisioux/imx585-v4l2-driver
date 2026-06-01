@@ -110,6 +110,8 @@
 #define IMX585_REG_VMAX                 CCI_REG24_LE(0x3028)
 #define IMX585_VMAX_MAX                 0xfffff
 #define IMX585_VMAX_DEFAULT             2250
+/* Min HMAX (4-lane) for the Clear HDR dual HG+LG read; see imx585_update_hmax */
+#define IMX585_HMAX_MIN_CLEARHDR        550
 
 /* HMAX internal HBLANK */
 #define IMX585_REG_HMAX                 CCI_REG16_LE(0x302c)
@@ -276,15 +278,21 @@ static const u64 link_freqs[] = {
 };
 
 /* min HMAX for 4-lane 4K full res mode, x2 for 2-lane */
-static const u16 HMAX_table_4lane_4K[] = {
+static const u16 HMAX_table_4lane_4K_12bit[] = {
 	[IMX585_LINK_FREQ_297MHZ]  = 1584,
 	[IMX585_LINK_FREQ_360MHZ]  = 1320,
 	[IMX585_LINK_FREQ_445MHZ]  = 1100,
 	[IMX585_LINK_FREQ_594MHZ]  = 792,
 	[IMX585_LINK_FREQ_720MHZ]  = 660,
 	[IMX585_LINK_FREQ_891MHZ]  = 550,
-	[IMX585_LINK_FREQ_1039MHZ] = 440,
-	[IMX585_LINK_FREQ_1188MHZ] = 396,
+	/*
+	 * 2079 Mbps/lane RAW12 is not listed in the standard all-pixel table.
+	 * HMAX=440 advertises roughly 75 fps but produced broken low-signal
+	 * frames on Pi 5/RP1. HMAX=472 is the verified-clean timing used for
+	 * RAW12 reference captures.
+	 */
+	[IMX585_LINK_FREQ_1039MHZ] = 472,
+	[IMX585_LINK_FREQ_1188MHZ] = 472,
 };
 
 struct imx585_inck_cfg {
@@ -343,6 +351,7 @@ struct imx585_mode {
 	unsigned int height;
 
 	u8  hmax_div;       /* per-mode scaling of min HMAX */
+	const u16 *hmax_table;
 	u16 min_hmax;       /* computed at runtime */
 	u32 min_vmax;       /* computed at runtime (fits 20-bit) */
 
@@ -650,6 +659,7 @@ static struct imx585_mode supported_modes[] = {
 		.width = IMX585_PIXEL_ARRAY_WIDTH / 2,   /* 1920 */
 		.height = IMX585_PIXEL_ARRAY_HEIGHT / 2, /* 1080 */
 		.hmax_div = 1,
+		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 366,            /* overwritten at runtime */
 		.min_vmax = IMX585_VMAX_DEFAULT,
 		.crop = {
@@ -668,6 +678,7 @@ static struct imx585_mode supported_modes[] = {
 		.width = IMX585_PIXEL_ARRAY_WIDTH,   /* 3840 */
 		.height = IMX585_PIXEL_ARRAY_HEIGHT, /* 2160 */
 		.hmax_div = 1,
+		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550,            /* overwritten at runtime */
 		.min_vmax = IMX585_VMAX_DEFAULT,
 		.crop = {
@@ -693,6 +704,7 @@ static struct imx585_mode supported_modes[] = {
 		.width = IMX585_PIXEL_ARRAY_WIDTH,                                  /* 3840 */
 		.height = IMX585_PIXEL_ARRAY_HEIGHT + 2 * IMX585_PIXEL_ARRAY_TOP_4K,/* 2200 */
 		.hmax_div = 1,
+		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550,
 		.min_vmax = IMX585_VMAX_DEFAULT,
 		.crop = {
@@ -1066,18 +1078,29 @@ static void imx585_update_gain_limits(struct imx585 *imx585)
 /* Recompute per-mode timing limits (HMAX/VMAX) from link/lanes/HDR */
 static void imx585_update_hmax(struct imx585 *imx585)
 {
-	const u32 base_4lane = HMAX_table_4lane_4K[imx585->link_freq_idx];
 	const u32 lane_scale = (imx585->lane_count == 2) ? 2 : 1;
-	const u32 factor     = base_4lane * lane_scale;
 	const u32 hdr_scale  = imx585->clear_hdr ? 2 : 1;
 	unsigned int i;
 
-	dev_info(imx585->clientdev, "Update minimum HMAX: base=%u lane_scale=%u hdr_scale=%u\n",
-		 base_4lane, lane_scale, hdr_scale);
+	dev_info(imx585->clientdev, "Update minimum HMAX: link_freq=%llu lane_scale=%u hdr_scale=%u\n",
+		 link_freqs[imx585->link_freq_idx], lane_scale, hdr_scale);
 
 	for (i = 0; i < ARRAY_SIZE(supported_modes); ++i) {
-		u32 h = factor / supported_modes[i].hmax_div;
+		u32 h = supported_modes[i].hmax_table[imx585->link_freq_idx] *
+			lane_scale / supported_modes[i].hmax_div;
 		u32 v = IMX585_VMAX_DEFAULT * hdr_scale;
+
+		/*
+		 * Clear HDR always does the dual HG+LG read, so the line readout
+		 * has a higher minimum (~HMAX 550 at 4-lane) than single-read
+		 * SDR — independent of output depth (12-bit CCMP or 16-bit). The
+		 * 12-bit/link-bandwidth tables drop below that at >=2079 Mbps/lane
+		 * (HMAX 472), where the HDR frame loses ~94% of its rows. Floor it
+		 * so Clear HDR runs on the high-speed link without a slower
+		 * dedicated hdr-link-frequency.
+		 */
+		if (imx585->clear_hdr)
+			h = max_t(u32, h, IMX585_HMAX_MIN_CLEARHDR * lane_scale);
 
 		supported_modes[i].min_hmax = h;
 		supported_modes[i].min_vmax = v;
