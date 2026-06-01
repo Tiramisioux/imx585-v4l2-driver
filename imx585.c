@@ -295,6 +295,23 @@ static const u16 HMAX_table_4lane_4K_12bit[] = {
 	[IMX585_LINK_FREQ_1188MHZ] = 472,
 };
 
+static const u16 HMAX_table_4lane_4K_10bit[] = {
+	[IMX585_LINK_FREQ_297MHZ]  = 1320,
+	[IMX585_LINK_FREQ_360MHZ]  = 1100,
+	[IMX585_LINK_FREQ_445MHZ]  = 1100,
+	[IMX585_LINK_FREQ_594MHZ]  = 660,
+	[IMX585_LINK_FREQ_720MHZ]  = 550,
+	[IMX585_LINK_FREQ_891MHZ]  = 550,
+	/*
+	 * Sony's 2079 Mbps/lane RAW10 row lists HMAX=366, VMAX=2250 for the
+	 * 90.1 fps all-pixel mode. On the Pi 5/RP1 path, same-scene RAW10 vs
+	 * RAW12 QA showed deterministic artifacts at HMAX=366. HMAX=375 with
+	 * VMAX=2200 is the validated 90 fps clean timing on this DUT.
+	 */
+	[IMX585_LINK_FREQ_1039MHZ] = 375,
+	[IMX585_LINK_FREQ_1188MHZ] = 376,
+};
+
 struct imx585_inck_cfg {
 	u32 xclk_hz;
 	u8  inck_sel;
@@ -586,6 +603,17 @@ static const struct cci_reg_sequence mode_4k_regs_12bit[] = {
 	IMX585_WIN_CROP_REGS_12BIT,
 };
 
+/* All-pixel 4K, 10-bit */
+static const struct cci_reg_sequence mode_4k_regs_10bit[] = {
+	{ CCI_REG8(0x301b), 0x00 }, /* ADDMODE non-binning */
+	{ CCI_REG8(0x3022), 0x00 }, /* ADBIT 10-bit */
+	{ IMX585_REG_MDBIT, 0x00 }, /* MDBIT RAW10 */
+	{ CCI_REG8(0x30d5), 0x04 }, /* DIG_CLP_VSTART non-binning */
+	{ CCI_REG8(0x3930), 0x66 }, /* DUR[15:8] (10-bit) */
+	{ CCI_REG8(0x3931), 0x00 }, /* DUR[7:0]  (10-bit) */
+	IMX585_WIN_CROP_REGS_12BIT,
+};
+
 /* 2x2 binned 1080p, 12-bit */
 static const struct cci_reg_sequence mode_1080_regs_12bit[] = {
 	{ CCI_REG8(0x301b), 0x01 }, /* ADDMODE binning */
@@ -720,12 +748,38 @@ static struct imx585_mode supported_modes[] = {
 	},
 };
 
+static struct imx585_mode supported_10bit_modes[] = {
+	{
+		/* Cropped UHD RAW10 at 90 fps when the 2079 Mbps/lane link is selected */
+		.width = IMX585_PIXEL_ARRAY_WIDTH,   /* 3840 */
+		.height = IMX585_PIXEL_ARRAY_HEIGHT, /* 2160 */
+		.hmax_div = 1,
+		.hmax_table = HMAX_table_4lane_4K_10bit,
+		.min_hmax = 366,            /* overwritten at runtime */
+		.min_vmax = IMX585_VMAX_DEFAULT,
+		.crop = {
+			.left = 0,
+			.top = 0,
+			.width = IMX585_PIXEL_ARRAY_WIDTH,
+			.height = IMX585_PIXEL_ARRAY_HEIGHT,
+		},
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(mode_4k_regs_10bit),
+			.regs = mode_4k_regs_10bit,
+		},
+	},
+};
+
 /* Formats exposed per mode/bit depth */
 static const u32 codes_normal[] = {
 	MEDIA_BUS_FMT_SRGGB12_1X12,
 	MEDIA_BUS_FMT_SGRBG12_1X12,
 	MEDIA_BUS_FMT_SGBRG12_1X12,
 	MEDIA_BUS_FMT_SBGGR12_1X12,
+	MEDIA_BUS_FMT_SRGGB10_1X10,
+	MEDIA_BUS_FMT_SGRBG10_1X10,
+	MEDIA_BUS_FMT_SGBRG10_1X10,
+	MEDIA_BUS_FMT_SBGGR10_1X10,
 };
 
 static const u32 codes_clearhdr[] = {
@@ -744,6 +798,7 @@ static const u32 codes_clearhdr[] = {
 static const u32 mono_codes[] = {
 	MEDIA_BUS_FMT_Y16_1X16,
 	MEDIA_BUS_FMT_Y12_1X12,
+	MEDIA_BUS_FMT_Y10_1X10,
 };
 
 /* Regulators */
@@ -888,6 +943,9 @@ static inline void get_mode_table(struct imx585 *imx585, unsigned int code,
 				*mode_list = supported_modes;     /* binned + 4K 12-bit */
 				*num_modes = 2;
 			}
+		} else if (code == MEDIA_BUS_FMT_Y10_1X10 && !imx585->clear_hdr) {
+			*mode_list = supported_10bit_modes;   /* 4K 10-bit */
+			*num_modes = ARRAY_SIZE(supported_10bit_modes);
 		}
 	} else {
 		/* --- Color paths --- */
@@ -923,6 +981,15 @@ static inline void get_mode_table(struct imx585 *imx585, unsigned int code,
 				*num_modes = 2;                       /* exclude 16-bit entry */
 			}
 			break;
+		case MEDIA_BUS_FMT_SRGGB10_1X10:
+		case MEDIA_BUS_FMT_SGRBG10_1X10:
+		case MEDIA_BUS_FMT_SGBRG10_1X10:
+		case MEDIA_BUS_FMT_SBGGR10_1X10:
+			if (!imx585->clear_hdr) {
+				*mode_list = supported_10bit_modes;
+				*num_modes = ARRAY_SIZE(supported_10bit_modes);
+			}
+			break;
 		default:
 			*mode_list = NULL;
 			*num_modes = 0;
@@ -948,13 +1015,17 @@ static u32 imx585_get_format_code(struct imx585 *imx585, u32 code)
 	unsigned int i;
 
 	if (imx585->mono) {
-		if (code == MEDIA_BUS_FMT_Y12_1X12)
-			return MEDIA_BUS_FMT_Y12_1X12;
-		if (imx585->clear_hdr && code == MEDIA_BUS_FMT_Y16_1X16)
+		if (imx585->clear_hdr) {
+			if (code == MEDIA_BUS_FMT_Y16_1X16 ||
+			    code == MEDIA_BUS_FMT_Y12_1X12)
+				return code;
 			return MEDIA_BUS_FMT_Y16_1X16;
+		}
 
-		return imx585->clear_hdr ? MEDIA_BUS_FMT_Y16_1X16 :
-					   MEDIA_BUS_FMT_Y12_1X12;
+		if (code == MEDIA_BUS_FMT_Y12_1X12 ||
+		    code == MEDIA_BUS_FMT_Y10_1X10)
+			return code;
+		return MEDIA_BUS_FMT_Y12_1X12;
 	}
 
 	if (imx585->clear_hdr) {
@@ -1107,6 +1178,22 @@ static void imx585_update_hmax(struct imx585 *imx585)
 
 		dev_info(imx585->clientdev, " mode %ux%u -> VMAX=%u HMAX=%u\n",
 			 supported_modes[i].width, supported_modes[i].height, v, h);
+	}
+
+	for (i = 0; i < ARRAY_SIZE(supported_10bit_modes); ++i) {
+		u32 h = supported_10bit_modes[i].hmax_table[imx585->link_freq_idx] *
+			lane_scale / supported_10bit_modes[i].hmax_div;
+		u32 v = IMX585_VMAX_DEFAULT * hdr_scale;
+
+		if (imx585->link_freq_idx == IMX585_LINK_FREQ_1039MHZ)
+			v = 2200 * hdr_scale;
+
+		supported_10bit_modes[i].min_hmax = h;
+		supported_10bit_modes[i].min_vmax = v;
+
+		dev_info(imx585->clientdev, " mode %ux%u -> VMAX=%u HMAX=%u\n",
+			 supported_10bit_modes[i].width,
+			 supported_10bit_modes[i].height, v, h);
 	}
 }
 
@@ -1664,9 +1751,10 @@ static int imx585_enum_mbus_code(struct v4l2_subdev *sd,
 			code->code = mono_codes[code->index];
 			return 0;
 		}
-		if (code->index)
+		if (code->index > 1)
 			return -EINVAL;
-		code->code = MEDIA_BUS_FMT_Y12_1X12;
+		code->code = code->index ? MEDIA_BUS_FMT_Y10_1X10
+					  : MEDIA_BUS_FMT_Y12_1X12;
 		return 0;
 	}
 
