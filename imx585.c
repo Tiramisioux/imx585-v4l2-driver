@@ -862,6 +862,7 @@ struct imx585 {
 	/* Flags/params */
 	bool hcg;
 	bool mono;
+	bool clearhdr_ccmp;
 	bool clear_hdr;
 
 	/*
@@ -919,6 +920,48 @@ static int imx585_update_test_pattern(struct imx585 *imx585, u32 pattern_index)
 	return cci_write(imx585->regmap, IMX585_REG_TPG_TESTCLKEN, 0x0A, NULL);
 }
 
+static bool imx585_is_clearhdr_16bit_code(u32 code)
+{
+	switch (code) {
+	case MEDIA_BUS_FMT_SRGGB16_1X16:
+	case MEDIA_BUS_FMT_SGRBG16_1X16:
+	case MEDIA_BUS_FMT_SGBRG16_1X16:
+	case MEDIA_BUS_FMT_SBGGR16_1X16:
+	case MEDIA_BUS_FMT_Y16_1X16:
+		return true;
+	default:
+		return false;
+	}
+}
+
+static bool imx585_is_clearhdr_12bit_code(u32 code)
+{
+	switch (code) {
+	case MEDIA_BUS_FMT_SRGGB12_1X12:
+	case MEDIA_BUS_FMT_SGRBG12_1X12:
+	case MEDIA_BUS_FMT_SGBRG12_1X12:
+	case MEDIA_BUS_FMT_SBGGR12_1X12:
+	case MEDIA_BUS_FMT_Y12_1X12:
+		return true;
+	default:
+		return false;
+	}
+}
+
+static void imx585_activate_hdr_controls(struct imx585 *imx585)
+{
+	const bool clear_hdr = imx585->clear_hdr;
+	const bool ccmp = clear_hdr && imx585->clearhdr_ccmp;
+
+	v4l2_ctrl_activate(imx585->datasel_th_ctrl, clear_hdr);
+	v4l2_ctrl_activate(imx585->datasel_bk_ctrl, clear_hdr);
+	v4l2_ctrl_activate(imx585->gdc_th_ctrl, ccmp);
+	v4l2_ctrl_activate(imx585->gdc_exp_ctrl_h, ccmp);
+	v4l2_ctrl_activate(imx585->gdc_exp_ctrl_l, ccmp);
+	v4l2_ctrl_activate(imx585->hdr_gain_ctrl, clear_hdr);
+	v4l2_ctrl_activate(imx585->hcg_ctrl, !clear_hdr);
+}
+
 static inline void get_mode_table(struct imx585 *imx585, unsigned int code,
 				  const struct imx585_mode **mode_list,
 				  unsigned int *num_modes)
@@ -937,8 +980,10 @@ static inline void get_mode_table(struct imx585 *imx585, unsigned int code,
 			*num_modes = 1;
 		} else if (code == MEDIA_BUS_FMT_Y12_1X12) {
 			if (imx585->clear_hdr) {
-				*mode_list = &supported_modes[IMX585_MODE_4K_12BIT];
-				*num_modes = 1;
+				if (imx585->clearhdr_ccmp) {
+					*mode_list = &supported_modes[IMX585_MODE_4K_12BIT];
+					*num_modes = 1;
+				}
 			} else {
 				*mode_list = supported_modes;     /* binned + 4K 12-bit */
 				*num_modes = 2;
@@ -974,8 +1019,10 @@ static inline void get_mode_table(struct imx585 *imx585, unsigned int code,
 		case MEDIA_BUS_FMT_SGBRG12_1X12:
 		case MEDIA_BUS_FMT_SBGGR12_1X12:
 			if (imx585->clear_hdr) {
-				*mode_list = &supported_modes[IMX585_MODE_4K_12BIT];
-				*num_modes = 1;
+				if (imx585->clearhdr_ccmp) {
+					*mode_list = &supported_modes[IMX585_MODE_4K_12BIT];
+					*num_modes = 1;
+				}
 			} else {
 				*mode_list = supported_modes;         /* binned + 4K */
 				*num_modes = 2;                       /* exclude 16-bit entry */
@@ -1016,7 +1063,9 @@ static u32 imx585_get_format_code(struct imx585 *imx585, u32 code)
 
 	if (imx585->mono) {
 		if (imx585->clear_hdr) {
-			if (code == MEDIA_BUS_FMT_Y16_1X16 ||
+			if (code == MEDIA_BUS_FMT_Y16_1X16)
+				return code;
+			if (imx585->clearhdr_ccmp &&
 			    code == MEDIA_BUS_FMT_Y12_1X12)
 				return code;
 			return MEDIA_BUS_FMT_Y16_1X16;
@@ -1030,7 +1079,9 @@ static u32 imx585_get_format_code(struct imx585 *imx585, u32 code)
 
 	if (imx585->clear_hdr) {
 		for (i = 0; i < ARRAY_SIZE(codes_clearhdr); i++)
-			if (codes_clearhdr[i] == code)
+			if (codes_clearhdr[i] == code &&
+			    (imx585_is_clearhdr_16bit_code(code) ||
+			     imx585->clearhdr_ccmp))
 				return codes_clearhdr[i];
 		return codes_clearhdr[0];
 	}
@@ -1257,13 +1308,7 @@ static int imx585_set_ctrl(struct v4l2_ctrl *ctrl)
 		if (imx585->clear_hdr != ctrl->val) {
 			imx585->clear_hdr = ctrl->val;
 
-			v4l2_ctrl_activate(imx585->datasel_th_ctrl,  imx585->clear_hdr);
-			v4l2_ctrl_activate(imx585->datasel_bk_ctrl,  imx585->clear_hdr);
-			v4l2_ctrl_activate(imx585->gdc_th_ctrl,      imx585->clear_hdr);
-			v4l2_ctrl_activate(imx585->gdc_exp_ctrl_h,   imx585->clear_hdr);
-			v4l2_ctrl_activate(imx585->gdc_exp_ctrl_l,   imx585->clear_hdr);
-			v4l2_ctrl_activate(imx585->hdr_gain_ctrl,    imx585->clear_hdr);
-			v4l2_ctrl_activate(imx585->hcg_ctrl,        !imx585->clear_hdr);
+			imx585_activate_hdr_controls(imx585);
 
 			/* Disable HCG in ClearHDR mode */
 			imx585->hcg = imx585->clear_hdr ? 0 : imx585->hcg;
@@ -1684,14 +1729,7 @@ static int imx585_init_controls(struct imx585 *imx585)
 				     ARRAY_SIZE(imx585_tpg_menu) - 1,
 				     0, 0, imx585_tpg_menu);
 
-	v4l2_ctrl_activate(imx585->datasel_th_ctrl,  imx585->clear_hdr);
-	v4l2_ctrl_activate(imx585->datasel_bk_ctrl,  imx585->clear_hdr);
-	v4l2_ctrl_activate(imx585->gdc_th_ctrl,      imx585->clear_hdr);
-	v4l2_ctrl_activate(imx585->gdc_exp_ctrl_l,   imx585->clear_hdr);
-	v4l2_ctrl_activate(imx585->gdc_exp_ctrl_h,   imx585->clear_hdr);
-	v4l2_ctrl_activate(imx585->hdr_gain_ctrl,    imx585->clear_hdr);
-	/* HCG is disabled if ClearHDR is enabled */
-	v4l2_ctrl_activate(imx585->hcg_ctrl,        !imx585->clear_hdr);
+	imx585_activate_hdr_controls(imx585);
 
 	if (hdl->error) {
 		ret = hdl->error;
@@ -1746,7 +1784,7 @@ static int imx585_enum_mbus_code(struct v4l2_subdev *sd,
 
 	if (imx585->mono) {
 		if (imx585->clear_hdr) {
-			if (code->index > 1)
+			if (code->index >= (imx585->clearhdr_ccmp ? 2 : 1))
 				return -EINVAL;
 			code->code = mono_codes[code->index];
 			return 0;
@@ -1760,7 +1798,8 @@ static int imx585_enum_mbus_code(struct v4l2_subdev *sd,
 
 	if (imx585->clear_hdr) {
 		tbl = codes_clearhdr;
-		entries = ARRAY_SIZE(codes_clearhdr) / 4;
+		entries = imx585->clearhdr_ccmp ?
+			  ARRAY_SIZE(codes_clearhdr) / 4 : 1;
 	} else {
 		tbl = codes_normal;
 		entries = ARRAY_SIZE(codes_normal) / 4;
@@ -1945,23 +1984,21 @@ static int imx585_enable_streams(struct v4l2_subdev *sd,
 		 * investigation or empirical pattern testing — for now the
 		 * SDR fix is in place and HDR keeps the residual top-bar.
 		 */
-		/* 16-bit: linear; 12-bit: enable gradation compression */
-		switch (fmt_code) {
-			case MEDIA_BUS_FMT_SRGGB16_1X16:
-			case MEDIA_BUS_FMT_SGRBG16_1X16:
-			case MEDIA_BUS_FMT_SGBRG16_1X16:
-			case MEDIA_BUS_FMT_SBGGR16_1X16:
-			case MEDIA_BUS_FMT_Y16_1X16:
-				ret = cci_write(imx585->regmap, IMX585_REG_CCMP_EN, 0x00, NULL);
-				if (!ret)
-					ret = cci_write(imx585->regmap, IMX585_REG_MDBIT, 0x03, NULL);
-				break;
-			default:
-				ret = cci_write(imx585->regmap, IMX585_REG_CCMP_EN, 0x01, NULL);
-				if (!ret)
-					ret = cci_write(imx585->regmap, IMX585_REG_MDBIT, 0x01, NULL);
-				break;
-			}
+		/* 16-bit: linear; 12-bit: opt-in gradation compression. */
+		if (imx585_is_clearhdr_16bit_code(fmt_code)) {
+			ret = cci_write(imx585->regmap, IMX585_REG_CCMP_EN, 0x00, NULL);
+			if (!ret)
+				ret = cci_write(imx585->regmap, IMX585_REG_MDBIT, 0x03, NULL);
+		} else if (imx585->clearhdr_ccmp &&
+			   imx585_is_clearhdr_12bit_code(fmt_code)) {
+			ret = cci_write(imx585->regmap, IMX585_REG_CCMP_EN, 0x01, NULL);
+			if (!ret)
+				ret = cci_write(imx585->regmap, IMX585_REG_MDBIT, 0x01, NULL);
+		} else {
+			dev_err(imx585->clientdev,
+				"12-bit ClearHDR CCMP requested without ccmp overlay flag\n");
+			ret = -EINVAL;
+		}
 		if (ret)
 			goto err_rpm_put;
 	} else {
@@ -2290,6 +2327,10 @@ static int imx585_probe(struct i2c_client *client)
 	imx585->mono = of_property_read_bool(dev->of_node, "mono-mode");
 	if (imx585->mono)
 		dev_info(dev, "Mono Mode Selected, make sure you have the correct sensor variant\n");
+	imx585->clearhdr_ccmp = of_property_read_bool(dev->of_node,
+						      "sony,clearhdr-ccmp");
+	dev_info(dev, "ClearHDR 12-bit CCMP: %s\n",
+		 imx585->clearhdr_ccmp ? "enabled" : "disabled");
 
 	imx585->sync_mode = SYNC_INT_LEADER;
 	if (!device_property_read_string(dev, "sony,sync-mode", &sync_mode)) {
