@@ -952,7 +952,12 @@ static const struct v4l2_ctrl_ops imx585_ctrl_ops = {
 	.s_ctrl = imx585_set_ctrl,
 };
 
-static const u16 hdr_thresh_def[2] = { 512, 1024 };
+/*
+ * INNO-MAKER v1.0 default: EXP_TH_H = 0x0FFF, EXP_TH_L = 0x0000 (the values the
+ * ClearHDR reference stack ships and was validated with). Upstream will127534
+ * used { 512, 1024 }.
+ */
+static const u16 hdr_thresh_def[2] = { 0x0FFF, 0x0000 };
 static const struct v4l2_ctrl_config imx585_cfg_datasel_th = {
 	.ops       = &imx585_ctrl_ops,
 	.id        = V4L2_CID_IMX585_HDR_DATASEL_TH,
