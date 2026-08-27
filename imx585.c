@@ -448,6 +448,22 @@ static const struct cci_reg_sequence mode_1080_regs_12bit[] = {
  * Also, note that FHD and 4K mode shared the same VMAX.
  */
 
+/*
+ * Mode array layout:
+ *   [0] 1080p binned, 12-bit
+ *   [1] 4K all-pixel for 12-bit formats (SDR + ClearHDR-12 CCMP);
+ *       readout dims incl. the 20 OB rows (3856×2180)
+ *   [2] 4K all-pixel for 16-bit ClearHDR. In RAW16 the sensor
+ *       PRE-pends 20 OB rows to its CSI2 output on top of the normal
+ *       readout (they carry a different CSI2 DT that the COMP1/RAW12
+ *       path filters out, but the CFE accepts every DT when csi_dt=0,
+ *       which is forced for RAW16 to avoid an RP1 HW mismatch).
+ *       Advertise height = 2180 + 20 = 2200 so the buffer matches
+ *       what the sensor actually emits; with the old 2180 entry the
+ *       stream was 20 rows taller than the buffer.
+ *
+ * get_mode_table() routes 12-bit → modes [0..1], 16-bit → mode [2].
+ */
 static struct imx585_mode supported_modes[] = {
 	{
 		/* 1080p60 2x2 binning */
@@ -471,6 +487,30 @@ static struct imx585_mode supported_modes[] = {
 		/* 4K60 All pixel */
 		.width = 3856,
 		.height = 2180,
+		.hmax_div = 1,
+		.min_hmax = 550,            /* overwritten at runtime */
+		.min_vmax = IMX585_VMAX_DEFAULT,
+		.crop = {
+			.left = IMX585_PIXEL_ARRAY_LEFT,
+			.top = IMX585_PIXEL_ARRAY_TOP,
+			.width = IMX585_PIXEL_ARRAY_WIDTH,
+			.height = IMX585_PIXEL_ARRAY_HEIGHT,
+		},
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(mode_4k_regs_12bit),
+			.regs = mode_4k_regs_12bit,
+		},
+	},
+	{
+		/*
+		 * 4K60 All pixel, 16-bit ClearHDR. Same register set as the
+		 * 12-bit 4K mode (MDBIT is overridden to RAW16 at runtime in
+		 * enable_streams); only the advertised height differs — the
+		 * readout 2180 plus the 20 OB rows the sensor prepends in
+		 * RAW16 output, see the mode-array comment above.
+		 */
+		.width = 3856,
+		.height = 2200,
 		.hmax_div = 1,
 		.min_hmax = 550,            /* overwritten at runtime */
 		.min_vmax = IMX585_VMAX_DEFAULT,
@@ -609,15 +649,15 @@ static inline void get_mode_table(struct imx585 *imx585, unsigned int code,
 	if (imx585->mono) {
 		/* --- Mono paths --- */
 		if (code == MEDIA_BUS_FMT_Y16_1X16 && imx585->clear_hdr) {
-			*mode_list = supported_modes;
-			*num_modes = ARRAY_SIZE(supported_modes);
+			*mode_list = &supported_modes[2];     /* 4K 16-bit */
+			*num_modes = 1;
 		} else if (code == MEDIA_BUS_FMT_Y12_1X12) {
 			if (imx585->clear_hdr) {
-				*mode_list = &supported_modes[1]; /* 4K all-pixel only */
+				*mode_list = &supported_modes[1]; /* 4K 12-bit */
 				*num_modes = 1;
 			} else {
 				*mode_list = supported_modes;
-				*num_modes = ARRAY_SIZE(supported_modes);
+				*num_modes = 2;           /* binned + 4K, 12-bit */
 			}
 		}
 	} else {
@@ -628,8 +668,8 @@ static inline void get_mode_table(struct imx585 *imx585, unsigned int code,
 		case MEDIA_BUS_FMT_SGRBG16_1X16:
 		case MEDIA_BUS_FMT_SGBRG16_1X16:
 		case MEDIA_BUS_FMT_SBGGR16_1X16:
-			*mode_list = supported_modes;
-			*num_modes = ARRAY_SIZE(supported_modes);
+			*mode_list = &supported_modes[2];     /* 4K 16-bit */
+			*num_modes = 1;
 			break;
 
 		/* 12-bit. Per AppNote §2 page 6, the 1920×1080 binning mode in
@@ -642,11 +682,11 @@ static inline void get_mode_table(struct imx585 *imx585, unsigned int code,
 		case MEDIA_BUS_FMT_SGBRG12_1X12:
 		case MEDIA_BUS_FMT_SBGGR12_1X12:
 			if (imx585->clear_hdr) {
-				*mode_list = &supported_modes[1];     /* 4K all-pixel only */
-				*num_modes = ARRAY_SIZE(supported_modes) - 1;
+				*mode_list = &supported_modes[1];     /* 4K 12-bit only */
+				*num_modes = 1;
 			} else {
 				*mode_list = supported_modes;
-				*num_modes = ARRAY_SIZE(supported_modes);
+				*num_modes = 2;           /* binned + 4K, 12-bit */
 			}
 			break;
 		default:
