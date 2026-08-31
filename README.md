@@ -142,3 +142,66 @@ dtoverlay=imx585,mono,always-on,cam0,link-frequency=297000000
 ```
 Imaging how many config I need to test.
 
+
+---
+
+## CineMate branch (`cinemate-7modes`)
+
+A hybrid of the `6.12.y` snapshot and the INNO-MAKER v1.0 / upstream `main`
+lineage, built for the CineMate stack. It takes `main`'s clean WINMODE
+geometry (active-area dims, OB stripped at the sensor), its RAW10 4K mode
+and its dedicated 16-bit Clear HDR mode entry, and restores the mode
+coverage `6.12.y` had — binned Clear HDR in both depths — for seven modes.
+
+### Mode matrix
+
+`cinepi-raw --list-cameras` is run twice by CineMate's sensor detection,
+once plain and once with `--hdr sensor`; the seven modes are the union.
+
+| # | Size | Depth | WDR | Notes |
+| - | ---- | ----- | --- | ----- |
+| 1 | 1920x1080 | 12-bit | off | 2x2 binned, SDR |
+| 2 | 3840x2160 | 12-bit | off | all-pixel, SDR |
+| 3 | 3840x2160 | 10-bit | off | all-pixel RAW10, up to 90 fps at 2079 Mbps/lane |
+| 4 | 1920x1080 | 12-bit | on  | binned Clear HDR + CCMP — colour only |
+| 5 | 3840x2160 | 12-bit | on  | all-pixel Clear HDR + CCMP |
+| 6 | 1920x1100 | 16-bit | on  | binned Clear HDR, linear — colour only; 1080 active + 2x10 OB |
+| 7 | 3840x2200 | 16-bit | on  | all-pixel Clear HDR, linear; 2160 active + 2x20 OB |
+
+The 16-bit modes advertise the OB padding because the sensor keeps
+prepending its optical-black rows in RAW16 regardless of WINMODE. The
+buffer is sized so a centered aspect crop lands exactly on the OB count
+and discards it.
+
+Mono keeps modes 1, 2, 3, 5 and 7. Binned Clear HDR returns pure BLC on
+the mono variant (pixel-confirmed at 12-bit), so both binned HDR entries
+are colour-only. 12-bit CCMP Clear HDR is default-on for colour and stays
+opt-in on mono via the `ccmp` dtoverlay parameter.
+
+Mono 16-bit additionally requires the rp1-cfe `csi_dt` fix for the Y16
+entry in `cfe_fmts.h`, which must be re-applied after every kernel
+upgrade — without it, RAW16 buffers arrive scrambled.
+
+### Behaviour at the top link frequency
+
+`6.12.y` produces distorted frames at 1039500000 (2079 Mbps/lane). That is
+the old `HMAX_table_4lane_4K` entry of 440, which is too aggressive for
+RAW12 on the Pi 5/RP1 path, and the absence of any Clear HDR floor — a
+Clear HDR frame at HMAX 440 loses roughly 94% of its rows. Commit
+`c0f5404` in this lineage replaces both: RAW12 gets the verified-clean 472,
+and Clear HDR is floored at HMAX 550 regardless of link rate. So every
+Clear HDR mode on this branch runs at 2079 Mbps/lane with exactly the same
+sensor line timing it uses at 1782, and only the D-PHY runs faster. No
+further driver change is needed for 12-bit Clear HDR at the top rate.
+
+What the driver cannot fix: 1782 and 2079 Mbps/lane exceed the RP1 D-PHY
+1500 Mbps/lane limit by 19% and 39%. The receiver logs `DPHY: Datarate
+… out of range`, clamps `hsfreqrange` to the 1450-1500 code and streams on
+silicon margin. Residual artifacts that only appear at 2079 and scale with
+word width — for example speckle in 16-bit highlights — are physical-layer
+symptoms, not timing, and have no register-level remedy. Use 1440 Mbps/lane
+for anything that has to be reliable.
+
+Direct `hmax`, `vmax` and `shr` V4L2 controls are exposed, so a suspected
+timing limit can be tested live with `v4l2-ctl` before it is written into
+a table.
