@@ -1996,7 +1996,7 @@ static int imx585_enable_streams(struct v4l2_subdev *sd,
 				ret = cci_write(imx585->regmap, IMX585_REG_MDBIT, 0x01, NULL);
 		} else {
 			dev_err(imx585->clientdev,
-				"12-bit ClearHDR CCMP requested without ccmp overlay flag\n");
+				"12-bit ClearHDR CCMP requested without ccmp overlay flag (mono is opt-in)\n");
 			ret = -EINVAL;
 		}
 		if (ret)
@@ -2327,10 +2327,21 @@ static int imx585_probe(struct i2c_client *client)
 	imx585->mono = of_property_read_bool(dev->of_node, "mono-mode");
 	if (imx585->mono)
 		dev_info(dev, "Mono Mode Selected, make sure you have the correct sensor variant\n");
-	imx585->clearhdr_ccmp = of_property_read_bool(dev->of_node,
+	/*
+	 * 12-bit CCMP Clear HDR is default-on for the colour variant (a plain
+	 * valid configuration there, hardware-verified by the 2026-08-10
+	 * colour goldens on 6.12.y) and stays opt-in via the ccmp overlay
+	 * param on mono, where binned 12-bit Clear HDR is an invalid
+	 * combination that outputs only the BLC pedestal and Y12+WDR
+	 * enumeration interacts with the Y16 capture pipeline.
+	 */
+	imx585->clearhdr_ccmp = !imx585->mono ||
+				of_property_read_bool(dev->of_node,
 						      "sony,clearhdr-ccmp");
-	dev_info(dev, "ClearHDR 12-bit CCMP: %s\n",
-		 imx585->clearhdr_ccmp ? "enabled" : "disabled");
+	dev_info(dev, "ClearHDR 12-bit CCMP: %s%s\n",
+		 imx585->clearhdr_ccmp ? "enabled" : "disabled",
+		 imx585->mono ? " (mono: opt-in via ccmp overlay param)"
+			      : " (colour: default-on)");
 
 	imx585->sync_mode = SYNC_INT_LEADER;
 	if (!device_property_read_string(dev, "sony,sync-mode", &sync_mode)) {
