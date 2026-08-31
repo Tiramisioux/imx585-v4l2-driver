@@ -147,8 +147,9 @@ Imaging how many config I need to test.
 
 ## CineMate branch (`cinemate-7modes`)
 
-A hybrid of the `6.12.y` snapshot and the INNO-MAKER v1.0 / upstream `main`
-lineage, built for the CineMate stack. It takes `main`'s clean WINMODE
+A hybrid of the `6.12.y` snapshot and the `innomaker-v1.0` branch (the
+INNO-MAKER v1.0 release, byte-identical to the vendor package), built for
+the CineMate stack. It takes `innomaker-v1.0`'s clean WINMODE
 geometry (active-area dims, OB stripped at the sensor), its RAW10 4K mode
 and its dedicated 16-bit Clear HDR mode entry, and restores the mode
 coverage `6.12.y` had — binned Clear HDR in both depths — for seven modes.
@@ -182,6 +183,48 @@ Mono 16-bit additionally requires the rp1-cfe `csi_dt` fix for the Y16
 entry in `cfe_fmts.h`, which must be re-applied after every kernel
 upgrade — without it, RAW16 buffers arrive scrambled.
 
+### Clear HDR defaults
+
+Clear HDR combines a high-gain and a low-gain readout. The mix is set by
+`EXP_BK` (0x36e2), exposed as the V4L2 menu control **HDR Data Blending
+Mode**. Indices 0-7 are valid; index 8 and above are "Setting Prohibited"
+in the AppNote. The spec lists two 50/50 entries, so 0 and 4 are the same
+mix.
+
+| Index | HG | LG |
+| ----- | -- | -- |
+| 0 | 1/2 | 1/2 |
+| 1 | 3/4 | 1/4 |
+| 2 | 7/8 | 1/8 |
+| 3 | 15/16 | 1/16 |
+| 4 | 1/2 | 1/2 (alt) |
+| 5 | 1/16 | 15/16 |
+| 6 | 1/8 | 7/8 |
+| 7 | 1/4 | 3/4 |
+
+**Menu 5 (HG 1/16, LG 15/16) is the recommended setting**, and is what
+CineMate ships. Confirmed on the colour rig on 2026-08-31: it clears the
+white/magenta speckle and the flat black-level-pedestal frames that the
+low indices produce, on all seven modes.
+
+The same knob, per layer:
+
+| Layer | Name |
+| ----- | ---- |
+| CineMate CLI | `set hdr blend 5` |
+| CineMate settings | `image_capture.hdr.blend` |
+| Redis | `hdr_blend` |
+| V4L2 control | `hdr_data_blending_mode` |
+| Sensor register | `EXP_BK` 0x36e2 |
+
+Open question: the driver's own default is still menu 0.
+`common_clearHDR_mode` writes `{0x36e2, 0x00}` and the control is
+registered with `.def = 0`. Anything that does not set the control
+explicitly — a bare `cinepi-raw` launch, `v4l2-ctl`, a third-party capture
+app — therefore gets menu 0 and the artifacts that come with it. Only
+CineMate sets 5. Whether the driver default should move to 5 has not been
+decided.
+
 ### Behaviour at the top link frequency
 
 `6.12.y` produces distorted frames at 1039500000 (2079 Mbps/lane). That is
@@ -197,10 +240,20 @@ further driver change is needed for 12-bit Clear HDR at the top rate.
 What the driver cannot fix: 1782 and 2079 Mbps/lane exceed the RP1 D-PHY
 1500 Mbps/lane limit by 19% and 39%. The receiver logs `DPHY: Datarate
 … out of range`, clamps `hsfreqrange` to the 1450-1500 code and streams on
-silicon margin. Residual artifacts that only appear at 2079 and scale with
-word width — for example speckle in 16-bit highlights — are physical-layer
-symptoms, not timing, and have no register-level remedy. Use 1440 Mbps/lane
-for anything that has to be reliable.
+silicon margin. 1440 and below stay inside spec; above that the link is
+out of spec by design, so verify it on your own hardware rather than
+assume it.
+
+Verified, 2026-08-31: `link-frequency=891000000` (1782 Mbps/lane) with
+`dtoverlay=rp1-overclock`, colour sensor, CM5 on kernel 6.12.93, all seven
+modes clean including 16-bit Clear HDR. The white/magenta speckle and the
+flat black-level frames once blamed on this link rate were the Clear HDR
+blend default, not the D-PHY — `EXP_BK` menu 5 fixes them, and that is a
+register-level remedy. See [Clear HDR defaults](#clear-hdr-defaults).
+
+Not verified: 1039500000 (2079 Mbps/lane) has not been re-tested since the
+blend fix. The HMAX distortion at that rate is fixed in the driver, as
+above, but nothing else about 2079 has been re-checked.
 
 Direct `hmax`, `vmax` and `shr` V4L2 controls are exposed, so a suspected
 timing limit can be tested live with `v4l2-ctl` before it is written into
