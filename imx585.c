@@ -624,6 +624,21 @@ static const struct cci_reg_sequence mode_1080_regs_12bit[] = {
 };
 
 /*
+ * 2x2 binned 1080p, 16-bit ClearHDR. Identical to the 12-bit binned table
+ * except for the PIX_VWIDTH bump — the window-crop registers are in sensor
+ * rows and binning is applied after the crop, so the same 2180 that yields
+ * 20 OB + 2180 rows at 4K yields 10 OB + 1090 rows here. MDBIT is
+ * overridden to 0x03 (RAW16) at runtime in imx585_enable_streams().
+ */
+static const struct cci_reg_sequence mode_1080_regs_16bit[] = {
+	{ CCI_REG8(0x301b), 0x01 }, /* ADDMODE binning */
+	{ CCI_REG8(0x3022), 0x02 }, /* ADBIT 12-bit */
+	{ IMX585_REG_MDBIT, 0x01 }, /* MDBIT 12-bit (overridden to 0x03 at runtime) */
+	{ CCI_REG8(0x30d5), 0x02 }, /* DIG_CLP_VSTART binning */
+	IMX585_WIN_CROP_REGS_16BIT,
+};
+
+/*
  * All-pixel 4K, 16-bit ClearHDR. Identical to the 12-bit table except
  * PIX_VWIDTH is bumped to 2180 — see comment on IMX585_WIN_CROP_REGS_16BIT
  * for the rationale (compensates for the 20 OB rows the sensor prepends
@@ -664,20 +679,27 @@ static const struct cci_reg_sequence mode_4k_regs_16bit[] = {
 
 /*
  * Mode array layout:
- *   [0] 1080p binned (12-bit; ClearHDR FHD binning is unusable)
+ *   [0] 1080p binned for 12-bit formats (SDR + ClearHDR-12 CCMP on colour).
  *   [1] 4K all-pixel for 12-bit formats (SDR + ClearHDR-12 CCMP).
  *       Sensor-side WINMODE crop strips the OB region — buffer = active.
- *   [2] 4K all-pixel for 16-bit ClearHDR. The sensor still emits 20 OB
- *       rows at the top of the buffer in this format (CFE accepts every
- *       CSI2 packet type because csi_dt=0 for RAW16, and no IMX585
- *       register suppresses the H4+H5 OB-row output). Advertise height
- *       = active + 20, set crop.top = 20 so libcamera/BE skip the OB.
+ *   [2] 1080p binned for 16-bit ClearHDR.
+ *   [3] 4K all-pixel for 16-bit ClearHDR.
  *
- * get_mode_table() routes 12-bit → modes [0..1], 16-bit → mode [2].
+ * The two 16-bit entries exist because the sensor still emits its OB rows
+ * at the top of the buffer in RAW16 (CFE accepts every CSI2 packet type
+ * because csi_dt=0 for RAW16, and no IMX585 register suppresses the H4+H5
+ * OB-row output). Advertise height = active + 2*OB so pisp.cpp's centered
+ * aspect crop lands exactly at the OB count and skips it — 20 rows at 4K,
+ * 10 rows binned (2x2 binning halves the OB region with everything else).
+ *
+ * The 12-bit and 16-bit pairs are kept adjacent so get_mode_table() can
+ * hand out a contiguous two-entry list per depth:
+ *   12-bit → modes [0..1], 16-bit → modes [2..3].
  */
 enum imx585_mode_id {
 	IMX585_MODE_1080P_12BIT,
 	IMX585_MODE_4K_12BIT,
+	IMX585_MODE_1080P_16BIT_HDR,
 	IMX585_MODE_4K_16BIT_HDR,
 };
 
@@ -718,6 +740,39 @@ static struct imx585_mode supported_modes[] = {
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_4k_regs_12bit),
 			.regs = mode_4k_regs_12bit,
+		},
+	},
+	{
+		/*
+		 * 1080p 2x2 binned, 16-bit ClearHDR. Same OB-compensation
+		 * trick as the 4K 16-bit entry below, scaled by the binning
+		 * factor: PIX_VWIDTH stays 2180 (window registers are in
+		 * sensor rows, binning happens after the crop), so the sensor
+		 * emits 10 binned OB rows + 1090 binned recording rows = 1100.
+		 * The centered aspect crop offset is (1100-1080)/2 = 10 —
+		 * exactly the binned OB count.
+		 *
+		 * Per AppNote ClearHDR §2 page 6 the binned Clear HDR readout
+		 * is 16-bit-output-only, which makes this the depth the mode
+		 * is actually specified for. Colour only: mono binned Clear
+		 * HDR returns pure BLC, pixel-confirmed (see get_mode_table).
+		 */
+		.width = IMX585_PIXEL_ARRAY_WIDTH / 2,   /* 1920 */
+		.height = IMX585_PIXEL_ARRAY_HEIGHT / 2
+			+ 2 * IMX585_PIXEL_ARRAY_TOP_BIN,/* 1100 */
+		.hmax_div = 1,
+		.hmax_table = HMAX_table_4lane_4K_12bit,
+		.min_hmax = 550,            /* overwritten at runtime */
+		.min_vmax = IMX585_VMAX_DEFAULT,
+		.crop = {
+			.left = 0,
+			.top = 0,
+			.width = IMX585_PIXEL_ARRAY_WIDTH / 2,
+			.height = IMX585_PIXEL_ARRAY_HEIGHT / 2,
+		},
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(mode_1080_regs_16bit),
+			.regs = mode_1080_regs_16bit,
 		},
 	},
 	{
@@ -971,8 +1026,10 @@ static inline void get_mode_table(struct imx585 *imx585, unsigned int code,
 
 	if (imx585->mono) {
 		/* --- Mono paths ---
-		 * Y16 only valid in Clear HDR. 4K-only (binning unusable).
-		 * Use the 16-bit-specific mode entry for the buffer-with-OB
+		 * Y16 only valid in Clear HDR, and 4K-only: binned Clear HDR
+		 * returns pure BLC on the mono variant (pixel-confirmed), so
+		 * mono keeps the single 4K entry while colour gets both. Use
+		 * the 16-bit-specific mode entry for the buffer-with-OB
 		 * layout. Y12 routes to the 12-bit modes.
 		 */
 		if (code == MEDIA_BUS_FMT_Y16_1X16 && imx585->clear_hdr) {
@@ -997,16 +1054,19 @@ static inline void get_mode_table(struct imx585 *imx585, unsigned int code,
 		switch (code) {
 		/* 16-bit (Clear HDR linear, only valid when WDR=1).
 		 *
-		 * 4K-only — binned Clear HDR is unusable. Routes to mode [2]
-		 * which advertises height = active + 20 OB rows so the buffer
-		 * covers the OB region the sensor still emits in this format.
+		 * Binned + 4K. AppNote ClearHDR §2 page 6 specifies the binned
+		 * Clear HDR readout as 16-bit-output-only, so this is the depth
+		 * the binning mode is defined for; the 12-bit binned Clear HDR
+		 * offered below is the variant-specific extra. Both entries
+		 * advertise height = active + 2*OB so the buffer covers the OB
+		 * region the sensor still emits in RAW16.
 		 */
 		case MEDIA_BUS_FMT_SRGGB16_1X16:
 		case MEDIA_BUS_FMT_SGRBG16_1X16:
 		case MEDIA_BUS_FMT_SGBRG16_1X16:
 		case MEDIA_BUS_FMT_SBGGR16_1X16:
-			*mode_list = &supported_modes[IMX585_MODE_4K_16BIT_HDR];
-			*num_modes = 1;
+			*mode_list = &supported_modes[IMX585_MODE_1080P_16BIT_HDR];
+			*num_modes = 2;
 			break;
 
 		/* 12-bit. The AppNote §2 page 6 reading ("binned Clear HDR is
