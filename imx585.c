@@ -1009,19 +1009,22 @@ static inline void get_mode_table(struct imx585 *imx585, unsigned int code,
 			*num_modes = 1;
 			break;
 
-		/* 12-bit. Per AppNote §2 page 6, the 1920×1080 binning mode in
-		 * Clear HDR only supports 16-bit output — 12-bit binned HDR is
-		 * not a valid sensor configuration and the part returns BLC if
-		 * asked. Skip the binning entry (index 0) when WDR=1, leaving
-		 * only the 4K all-pixel mode at index 1. */
+		/* 12-bit. The AppNote §2 page 6 reading ("binned Clear HDR is
+		 * 16-bit-only, the part returns BLC if asked") held on the
+		 * MONO variant, pixel-confirmed — but colour passed binned
+		 * 12-bit CCMP Clear HDR on the 2026-08-10 golden captures, so
+		 * the gate is variant-specific: colour offers binned + 4K in
+		 * Clear HDR (the imx585_update_hmax() Clear HDR floor applies
+		 * to every entry, so binned HDR timing is already safe); the
+		 * mono path above stays 4K-only. */
 		case MEDIA_BUS_FMT_SRGGB12_1X12:
 		case MEDIA_BUS_FMT_SGRBG12_1X12:
 		case MEDIA_BUS_FMT_SGBRG12_1X12:
 		case MEDIA_BUS_FMT_SBGGR12_1X12:
 			if (imx585->clear_hdr) {
 				if (imx585->clearhdr_ccmp) {
-					*mode_list = &supported_modes[IMX585_MODE_4K_12BIT];
-					*num_modes = 1;
+					*mode_list = supported_modes; /* binned + 4K */
+					*num_modes = 2;
 				}
 			} else {
 				*mode_list = supported_modes;         /* binned + 4K */
