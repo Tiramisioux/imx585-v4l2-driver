@@ -217,13 +217,16 @@ The same knob, per layer:
 | V4L2 control | `hdr_data_blending_mode` |
 | Sensor register | `EXP_BK` 0x36e2 |
 
-Open question: the driver's own default is still menu 0.
+The driver's own default stays at menu 0, deliberately.
 `common_clearHDR_mode` writes `{0x36e2, 0x00}` and the control is
-registered with `.def = 0`. Anything that does not set the control
-explicitly — a bare `cinepi-raw` launch, `v4l2-ctl`, a third-party capture
-app — therefore gets menu 0 and the artifacts that come with it. Only
-CineMate sets 5. Whether the driver default should move to 5 has not been
-decided.
+registered with `.def = 0`, matching the upstream will127534 lineage. Menu 0
+is what the sensor comes up with when nothing sets the control, so a bare
+`cinepi-raw` launch, `v4l2-ctl`, or a third-party capture app gets menu 0
+and the artifacts that come with it.
+
+**If you are writing against this driver, set the blend explicitly.** Menu 5
+is the value that works; the driver will not pick it for you. CineMate sets
+it at Clear HDR mode selection.
 
 ### Behaviour at the top link frequency
 
