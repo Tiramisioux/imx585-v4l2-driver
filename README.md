@@ -2,6 +2,12 @@
 
 This guide provides detailed instructions on how to install the IMX585 kernel driver on a Linux system, specifically Raspbian.
 
+> **CineMate users:** this file is the upstream will127534 driver guide. This branch
+> (`cinemate-7modes`) is the fork CineMate's installer pins by default — see the
+> [CineMate branch (`cinemate-7modes`)](#cinemate-branch-cinemate-7modes) section below for
+> what it adds over upstream: the seven-mode matrix, the ClearHDR blend-default gotcha, and the
+> CCMP/mono specifics.
+
 ## Special Thanks
 
 Special thanks to Soho-enterprise for the additional register info.  
@@ -34,7 +40,7 @@ sudo apt install linux-headers dkms git
 Clone the repository to your local machine and navigate to the cloned directory:
 
 ```bash
-git clone https://github.com/will127534/imx585-v4l2-driver.git
+git clone https://github.com/Tiramisioux/imx585-v4l2-driver.git --branch cinemate-7modes
 cd imx585-v4l2-driver/
 ```
 
