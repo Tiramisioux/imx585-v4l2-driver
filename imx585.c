@@ -1201,7 +1201,7 @@ static int imx585_program_window(struct imx585 *imx585,
 	 * region present in the output buffer.
 	 */
 	if (mode->raw16)
-		sensor_height += 2 * IMX585_PIXEL_ARRAY_TOP_4K;
+		sensor_height += IMX585_PIXEL_ARRAY_TOP_4K;
 	hst = IMX585_PIXEL_ARRAY_LEFT + mode->crop.left * mode->binning;
 	vst = 12 + mode->crop.top * mode->binning;
 
