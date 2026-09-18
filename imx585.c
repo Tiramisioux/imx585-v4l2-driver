@@ -374,6 +374,7 @@ struct imx585_mode {
 	const u16 *hmax_table;
 	u16 min_hmax;       /* computed at runtime */
 	u32 min_vmax;       /* computed at runtime (fits 20-bit) */
+	u32 min_vmax_default; /* immutable per-mode timing floor */
 
 	struct v4l2_rect crop;
 
