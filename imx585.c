@@ -726,22 +726,17 @@ static const struct cci_reg_sequence mode_4k_regs_16bit[] = {
 
 /*
  * Mode array layout:
- *   [0] 1080p binned for 12-bit formats (SDR + ClearHDR-12 CCMP on colour).
- *   [1] 4K all-pixel for 12-bit formats (SDR + ClearHDR-12 CCMP).
- *       Sensor-side WINMODE crop strips the OB region — buffer = active.
- *   [2] 1080p binned for 16-bit ClearHDR.
- *   [3] 4K all-pixel for 16-bit ClearHDR.
+ *   [0..9] 12-bit SDR/ClearHDR crop modes.
+ *   [10] 4K all-pixel 16-bit ClearHDR.
+ *   [11..14] 1x1 sensor-windowed 16-bit ClearHDR crops.
+ *   [15] 1080p 2x2 binned 16-bit ClearHDR.
+ *   [16..19] 2x2 sensor-windowed 16-bit ClearHDR crops.
  *
- * The two 16-bit entries exist because the sensor still emits its OB rows
- * at the top of the buffer in RAW16 (CFE accepts every CSI2 packet type
- * because csi_dt=0 for RAW16, and no IMX585 register suppresses the H4+H5
- * OB-row output). Advertise height = active + 2*OB so pisp.cpp's centered
- * aspect crop lands exactly at the OB count and skips it — 20 rows at 4K,
- * 10 rows binned (2x2 binning halves the OB region with everything else).
- *
- * The 12-bit and 16-bit pairs are kept adjacent so get_mode_table() can
- * hand out a contiguous two-entry list per depth:
- *   12-bit → modes [0..1], 16-bit → modes [2..3].
+ * RAW16 prepends 20 OB rows for 1x1 and 10 OB rows after 2x2 binning.
+ * The windowed RAW16 modes therefore add 20 sensor rows to PIX_VWIDTH,
+ * while the advertised buffer height includes the resulting OB rows too.
+ * The 16-bit entries are contiguous so get_mode_table() can expose all
+ * colour RAW16 modes as one range.
  */
 enum imx585_mode_id {
 	IMX585_MODE_1080P_12BIT,
@@ -858,15 +853,6 @@ static struct imx585_mode supported_modes[] = {
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
 	},
 	{
-		/* Existing 1080p 2x2 binned 16-bit ClearHDR; unchanged. */
-		.width = 1920, .height = 1100, .hmax_div = 1,
-		.binning = 2, .windowed = false, .raw16 = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = IMX585_VMAX_DEFAULT,
-		.crop = { .left = 0, .top = 0, .width = 1920, .height = 1080 },
-		.reg_list = { ARRAY_SIZE(mode_1080_regs_16bit), mode_1080_regs_16bit },
-	},
-	{
 		/* Existing 4K all-pixel 16-bit ClearHDR; unchanged. */
 		.width = 3840, .height = 2200, .hmax_div = 1,
 		.binning = 1, .windowed = false, .raw16 = true,
@@ -876,6 +862,15 @@ static struct imx585_mode supported_modes[] = {
 		.reg_list = { ARRAY_SIZE(mode_4k_regs_16bit), mode_4k_regs_16bit },
 	},
 
+	{
+		/* Existing 1080p 2x2 binned 16-bit ClearHDR; unchanged. */
+		.width = 1920, .height = 1100, .hmax_div = 1,
+		.binning = 2, .windowed = false, .raw16 = true,
+		.hmax_table = HMAX_table_4lane_4K_12bit,
+		.min_hmax = 550, .min_vmax = IMX585_VMAX_DEFAULT,
+		.crop = { .left = 0, .top = 0, .width = 1920, .height = 1080 },
+		.reg_list = { ARRAY_SIZE(mode_1080_regs_16bit), mode_1080_regs_16bit },
+	},
 	{
 		/* Experimental 2880x2160 1x1 RAW16 ClearHDR crop. */
 		.width = 2880, .height = 2200, .hmax_div = 1,
