@@ -1410,7 +1410,8 @@ static void imx585_update_hmax(struct imx585 *imx585)
 			supported_10bit_modes[i].min_vmax * hdr_scale :
 			IMX585_VMAX_DEFAULT * hdr_scale;
 
-		if (imx585->link_freq_idx == IMX585_LINK_FREQ_1039MHZ)
+		if (!supported_10bit_modes[i].windowed &&
+		    imx585->link_freq_idx == IMX585_LINK_FREQ_1039MHZ)
 			v = 2200 * hdr_scale;
 
 		supported_10bit_modes[i].min_hmax = h;
