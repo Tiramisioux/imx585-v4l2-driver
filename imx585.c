@@ -370,6 +370,7 @@ struct imx585_mode {
 	u8  hmax_div;       /* per-mode scaling of min HMAX */
 	u8  binning;        /* 1 = all-pixel, 2 = 2x2 digital binning */
 	bool windowed;      /* sensor-side WINMODE crop */
+	bool raw16;         /* RAW16 ClearHDR: sensor prepends OB rows */
 	const u16 *hmax_table;
 	u16 min_hmax;       /* computed at runtime */
 	u32 min_vmax;       /* computed at runtime (fits 20-bit) */
@@ -650,6 +651,26 @@ static const struct cci_reg_sequence mode_window_10bit_1x1_regs[] = {
 };
 
 /*
+ * Experimental RAW16 ClearHDR sensor-windowed modes. PIX_VWIDTH is
+ * programmed dynamically because the active crop and the RAW16 OB prepend
+ * vary with the selected mode. MDBIT is overridden to RAW16 after the
+ * ClearHDR common table is written.
+ */
+static const struct cci_reg_sequence mode_window_16bit_1x1_regs[] = {
+	{ CCI_REG8(0x301b), 0x00 },
+	{ CCI_REG8(0x3022), 0x02 },
+	{ IMX585_REG_MDBIT, 0x01 },
+	{ CCI_REG8(0x30d5), 0x04 },
+};
+
+static const struct cci_reg_sequence mode_window_16bit_2x2_regs[] = {
+	{ CCI_REG8(0x301b), 0x01 },
+	{ CCI_REG8(0x3022), 0x02 },
+	{ IMX585_REG_MDBIT, 0x01 },
+	{ CCI_REG8(0x30d5), 0x02 },
+};
+
+/*
  * 2x2 binned 1080p, 16-bit ClearHDR. Identical to the 12-bit binned table
  * except for the PIX_VWIDTH bump — the window-crop registers are in sensor
  * rows and binning is applied after the crop, so the same 2180 that yields
@@ -733,8 +754,16 @@ enum imx585_mode_id {
 	IMX585_MODE_CROP_BIN_960X540,
 	IMX585_MODE_CROP_BIN_640X360,
 	IMX585_MODE_CROP_BIN_400X300,
-	IMX585_MODE_1080P_16BIT_HDR,
 	IMX585_MODE_4K_16BIT_HDR,
+	IMX585_MODE_CROP_16_2880X2160,
+	IMX585_MODE_CROP_16_1920X1080,
+	IMX585_MODE_CROP_16_1280X720,
+	IMX585_MODE_CROP_16_800X600,
+	IMX585_MODE_1080P_16BIT_HDR,
+	IMX585_MODE_CROP_16_BIN_1440X1080,
+	IMX585_MODE_CROP_16_BIN_960X540,
+	IMX585_MODE_CROP_16_BIN_640X360,
+	IMX585_MODE_CROP_16_BIN_400X300,
 };
 
 static struct imx585_mode supported_modes[] = {
@@ -831,7 +860,7 @@ static struct imx585_mode supported_modes[] = {
 	{
 		/* Existing 1080p 2x2 binned 16-bit ClearHDR; unchanged. */
 		.width = 1920, .height = 1100, .hmax_div = 1,
-		.binning = 2, .windowed = false,
+		.binning = 2, .windowed = false, .raw16 = true,
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = IMX585_VMAX_DEFAULT,
 		.crop = { .left = 0, .top = 0, .width = 1920, .height = 1080 },
@@ -840,11 +869,84 @@ static struct imx585_mode supported_modes[] = {
 	{
 		/* Existing 4K all-pixel 16-bit ClearHDR; unchanged. */
 		.width = 3840, .height = 2200, .hmax_div = 1,
-		.binning = 1, .windowed = false,
+		.binning = 1, .windowed = false, .raw16 = true,
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = IMX585_VMAX_DEFAULT,
 		.crop = { .left = 0, .top = 0, .width = 3840, .height = 2160 },
 		.reg_list = { ARRAY_SIZE(mode_4k_regs_16bit), mode_4k_regs_16bit },
+	},
+
+	{
+		/* Experimental 2880x2160 1x1 RAW16 ClearHDR crop. */
+		.width = 2880, .height = 2200, .hmax_div = 1,
+		.binning = 1, .windowed = true, .raw16 = true,
+		.hmax_table = HMAX_table_4lane_4K_12bit,
+		.min_hmax = 550, .min_vmax = 2230,
+		.crop = { .left = 480, .top = 0, .width = 2880, .height = 2160 },
+		.reg_list = { ARRAY_SIZE(mode_window_16bit_1x1_regs), mode_window_16bit_1x1_regs },
+	},
+	{
+		/* Experimental 1920x1080 1x1 RAW16 ClearHDR crop. */
+		.width = 1920, .height = 1120, .hmax_div = 1,
+		.binning = 1, .windowed = true, .raw16 = true,
+		.hmax_table = HMAX_table_4lane_4K_12bit,
+		.min_hmax = 550, .min_vmax = 1170,
+		.crop = { .left = 960, .top = 540, .width = 1920, .height = 1080 },
+		.reg_list = { ARRAY_SIZE(mode_window_16bit_1x1_regs), mode_window_16bit_1x1_regs },
+	},
+	{
+		/* Experimental 1280x720 1x1 RAW16 ClearHDR crop. */
+		.width = 1280, .height = 760, .hmax_div = 1,
+		.binning = 1, .windowed = true, .raw16 = true,
+		.hmax_table = HMAX_table_4lane_4K_12bit,
+		.min_hmax = 550, .min_vmax = 810,
+		.crop = { .left = 1280, .top = 720, .width = 1280, .height = 720 },
+		.reg_list = { ARRAY_SIZE(mode_window_16bit_1x1_regs), mode_window_16bit_1x1_regs },
+	},
+	{
+		/* Experimental 800x600 1x1 RAW16 ClearHDR crop. */
+		.width = 800, .height = 640, .hmax_div = 1,
+		.binning = 1, .windowed = true, .raw16 = true,
+		.hmax_table = HMAX_table_4lane_4K_12bit,
+		.min_hmax = 550, .min_vmax = 690,
+		.crop = { .left = 1520, .top = 780, .width = 800, .height = 600 },
+		.reg_list = { ARRAY_SIZE(mode_window_16bit_1x1_regs), mode_window_16bit_1x1_regs },
+	},
+	{
+		/* Experimental 1440x1080 2x2 RAW16 ClearHDR crop. */
+		.width = 1440, .height = 1100, .hmax_div = 1,
+		.binning = 2, .windowed = true, .raw16 = true,
+		.hmax_table = HMAX_table_4lane_4K_12bit,
+		.min_hmax = 550, .min_vmax = 2250,
+		.crop = { .left = 240, .top = 0, .width = 1440, .height = 1080 },
+		.reg_list = { ARRAY_SIZE(mode_window_16bit_2x2_regs), mode_window_16bit_2x2_regs },
+	},
+	{
+		/* Experimental 960x540 2x2 RAW16 ClearHDR crop. */
+		.width = 960, .height = 560, .hmax_div = 1,
+		.binning = 2, .windowed = true, .raw16 = true,
+		.hmax_table = HMAX_table_4lane_4K_12bit,
+		.min_hmax = 550, .min_vmax = 1170,
+		.crop = { .left = 480, .top = 270, .width = 960, .height = 540 },
+		.reg_list = { ARRAY_SIZE(mode_window_16bit_2x2_regs), mode_window_16bit_2x2_regs },
+	},
+	{
+		/* Experimental 640x360 2x2 RAW16 ClearHDR crop. */
+		.width = 640, .height = 380, .hmax_div = 1,
+		.binning = 2, .windowed = true, .raw16 = true,
+		.hmax_table = HMAX_table_4lane_4K_12bit,
+		.min_hmax = 550, .min_vmax = 810,
+		.crop = { .left = 640, .top = 360, .width = 640, .height = 360 },
+		.reg_list = { ARRAY_SIZE(mode_window_16bit_2x2_regs), mode_window_16bit_2x2_regs },
+	},
+	{
+		/* Experimental 400x300 2x2 RAW16 ClearHDR crop. */
+		.width = 400, .height = 320, .hmax_div = 1,
+		.binning = 2, .windowed = true, .raw16 = true,
+		.hmax_table = HMAX_table_4lane_4K_12bit,
+		.min_hmax = 550, .min_vmax = 690,
+		.crop = { .left = 760, .top = 390, .width = 400, .height = 300 },
+		.reg_list = { ARRAY_SIZE(mode_window_16bit_2x2_regs), mode_window_16bit_2x2_regs },
 	},
 };
 static struct imx585_mode supported_10bit_modes[] = {
@@ -1097,6 +1199,13 @@ static int imx585_program_window(struct imx585 *imx585,
 
 	sensor_width = mode->crop.width * mode->binning;
 	sensor_height = mode->crop.height * mode->binning;
+	/*
+	 * RAW16 ClearHDR prepends the optical-black rows even with WINMODE.
+	 * Add 20 sensor rows; 2x2 binning turns those into the 10-row OB
+	 * region present in the output buffer.
+	 */
+	if (mode->raw16)
+		sensor_height += 2 * IMX585_PIXEL_ARRAY_TOP_4K;
 	hst = IMX585_PIXEL_ARRAY_LEFT + mode->crop.left * mode->binning;
 	vst = 12 + mode->crop.top * mode->binning;
 
@@ -1172,8 +1281,9 @@ static inline void get_mode_table(struct imx585 *imx585, unsigned int code,
 		case MEDIA_BUS_FMT_SGRBG16_1X16:
 		case MEDIA_BUS_FMT_SGBRG16_1X16:
 		case MEDIA_BUS_FMT_SBGGR16_1X16:
-			*mode_list = &supported_modes[IMX585_MODE_1080P_16BIT_HDR];
-			*num_modes = 2;
+			*mode_list = &supported_modes[IMX585_MODE_4K_16BIT_HDR];
+			*num_modes = IMX585_MODE_CROP_16_BIN_400X300 -
+				     IMX585_MODE_4K_16BIT_HDR + 1;
 			break;
 
 		/* 12-bit. The AppNote §2 page 6 reading ("binned Clear HDR is
