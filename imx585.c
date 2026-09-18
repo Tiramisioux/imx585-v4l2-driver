@@ -823,7 +823,7 @@ static struct imx585_mode supported_modes[] = {
 		/* Experimental centered 400x300 crop after 2x2 binning. */
 		.width = 400, .height = 300, .hmax_div = 1,
 		.binning = 2, .windowed = true,
-		hmax_table = HMAX_table_4lane_4K_12bit,
+		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 670,
 		.crop = { .left = 760, .top = 390, .width = 400, .height = 300 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
@@ -849,26 +849,51 @@ static struct imx585_mode supported_modes[] = {
 };
 static struct imx585_mode supported_10bit_modes[] = {
 	{
-		/* Cropped UHD RAW10 at 90 fps when the 2079 Mbps/lane link is selected */
-		.width = IMX585_PIXEL_ARRAY_WIDTH,   /* 3840 */
-		.height = IMX585_PIXEL_ARRAY_HEIGHT, /* 2160 */
-		.hmax_div = 1,
+		/* Existing 4K RAW10 mode. */
+		.width = 3840, .height = 2160, .hmax_div = 1,
+		.binning = 1, .windowed = false,
 		.hmax_table = HMAX_table_4lane_4K_10bit,
-		.min_hmax = 366,            /* overwritten at runtime */
-		.min_vmax = IMX585_VMAX_DEFAULT,
-		.crop = {
-			.left = 0,
-			.top = 0,
-			.width = IMX585_PIXEL_ARRAY_WIDTH,
-			.height = IMX585_PIXEL_ARRAY_HEIGHT,
-		},
-		.reg_list = {
-			.num_of_regs = ARRAY_SIZE(mode_4k_regs_10bit),
-			.regs = mode_4k_regs_10bit,
-		},
+		.min_hmax = 366, .min_vmax = IMX585_VMAX_DEFAULT,
+		.crop = { .left = 0, .top = 0, .width = 3840, .height = 2160 },
+		.reg_list = { ARRAY_SIZE(mode_4k_regs_10bit), mode_4k_regs_10bit },
+	},
+	{
+		/* Experimental centered 2880x2160 RAW10 crop, 1x1. */
+		.width = 2880, .height = 2160, .hmax_div = 1,
+		.binning = 1, .windowed = true,
+		.hmax_table = HMAX_table_4lane_4K_10bit,
+		.min_hmax = 366, .min_vmax = 2230,
+		.crop = { .left = 480, .top = 0, .width = 2880, .height = 2160 },
+		.reg_list = { ARRAY_SIZE(mode_window_10bit_1x1_regs), mode_window_10bit_1x1_regs },
+	},
+	{
+		/* Experimental centered 1920x1080 RAW10 crop, 1x1. */
+		.width = 1920, .height = 1080, .hmax_div = 1,
+		.binning = 1, .windowed = true,
+		.hmax_table = HMAX_table_4lane_4K_10bit,
+		.min_hmax = 366, .min_vmax = 1150,
+		.crop = { .left = 960, .top = 540, .width = 1920, .height = 1080 },
+		.reg_list = { ARRAY_SIZE(mode_window_10bit_1x1_regs), mode_window_10bit_1x1_regs },
+	},
+	{
+		/* Experimental centered 1280x720 RAW10 crop, 1x1. */
+		.width = 1280, .height = 720, .hmax_div = 1,
+		.binning = 1, .windowed = true,
+		.hmax_table = HMAX_table_4lane_4K_10bit,
+		.min_hmax = 366, .min_vmax = 790,
+		.crop = { .left = 1280, .top = 720, .width = 1280, .height = 720 },
+		.reg_list = { ARRAY_SIZE(mode_window_10bit_1x1_regs), mode_window_10bit_1x1_regs },
+	},
+	{
+		/* Experimental centered 800x600 RAW10 crop, 1x1. */
+		.width = 800, .height = 600, .hmax_div = 1,
+		.binning = 1, .windowed = true,
+		.hmax_table = HMAX_table_4lane_4K_10bit,
+		.min_hmax = 366, .min_vmax = 670,
+		.crop = { .left = 1520, .top = 780, .width = 800, .height = 600 },
+		.reg_list = { ARRAY_SIZE(mode_window_10bit_1x1_regs), mode_window_10bit_1x1_regs },
 	},
 };
-
 /* Formats exposed per mode/bit depth */
 static const u32 codes_normal[] = {
 	MEDIA_BUS_FMT_SRGGB12_1X12,
@@ -1355,7 +1380,9 @@ static void imx585_update_hmax(struct imx585 *imx585)
 	for (i = 0; i < ARRAY_SIZE(supported_modes); ++i) {
 		u32 h = supported_modes[i].hmax_table[imx585->link_freq_idx] *
 			lane_scale / supported_modes[i].hmax_div;
-		u32 v = IMX585_VMAX_DEFAULT * hdr_scale;
+		u32 v = supported_modes[i].windowed ?
+			supported_modes[i].min_vmax * hdr_scale :
+			IMX585_VMAX_DEFAULT * hdr_scale;
 
 		/*
 		 * Clear HDR always does the dual HG+LG read, so the line readout
@@ -1379,7 +1406,9 @@ static void imx585_update_hmax(struct imx585 *imx585)
 	for (i = 0; i < ARRAY_SIZE(supported_10bit_modes); ++i) {
 		u32 h = supported_10bit_modes[i].hmax_table[imx585->link_freq_idx] *
 			lane_scale / supported_10bit_modes[i].hmax_div;
-		u32 v = IMX585_VMAX_DEFAULT * hdr_scale;
+		u32 v = supported_10bit_modes[i].windowed ?
+			supported_10bit_modes[i].min_vmax * hdr_scale :
+			IMX585_VMAX_DEFAULT * hdr_scale;
 
 		if (imx585->link_freq_idx == IMX585_LINK_FREQ_1039MHZ)
 			v = 2200 * hdr_scale;
