@@ -1127,9 +1127,16 @@ static int imx585_program_window(struct imx585 *imx585,
 	sensor_width = mode->crop.width * mode->binning;
 	sensor_height = mode->crop.height * mode->binning;
 	/*
-	 * RAW16 ClearHDR may prepend optical-black rows in the CSI output,
-	 * but those rows are not part of the sensor-side PIX_VWIDTH window.
-	 * Keep the programmed window inside the 2160-row active pixel array.
+	 * RAW16 ClearHDR prepends 20 optical-black rows in the CSI output.
+	 * PIX_VWIDTH is the sensor-side readout window, so for 1x1 RAW16
+	 * crops it must include those 20 extra sensor rows. The resulting
+	 * CSI buffer is therefore active_height + 20 (PIX_VWIDTH) + 20
+	 * (prepended OB) = active_height + 40, matching the advertised
+	 * 1920x1120 / 1280x760 / 2880x2200 formats.
+	 *
+	 * Keep the programmed window itself inside the active pixel array:
+	 * the extra 20 rows are the sensor's RAW16 readout overhead, not
+	 * part of the requested active crop.
 	 */
 	hst = IMX585_PIXEL_ARRAY_LEFT + mode->crop.left * mode->binning;
 	vst = 12 + mode->crop.top * mode->binning;
@@ -1154,6 +1161,13 @@ static int imx585_program_window(struct imx585 *imx585,
 	ret = cci_write(imx585->regmap, IMX585_REG_PIX_VST, vst, NULL);
 	if (ret)
 		return ret;
+
+	/*
+	 * 1x1 RAW16 ClearHDR: add the 20 sensor-side OB rows.  The 2x2
+	 * RAW16 modes retain their existing register-table geometry.
+	 */
+	if (mode->raw16 && mode->binning == 1)
+		sensor_height += IMX585_PIXEL_ARRAY_TOP_4K;
 
 	return cci_write(imx585->regmap, IMX585_REG_PIX_VWIDTH, sensor_height, NULL);
 }
