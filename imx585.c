@@ -778,6 +778,7 @@ enum imx585_mode_id {
 	IMX585_MODE_CROP_800X600,
 	IMX585_MODE_CROP_640X360,
 	IMX585_MODE_CROP_400X300,
+	IMX585_MODE_CROP_1440X1080_HDR12,
 	IMX585_MODE_CROP_BIN_1440X1080,
 	IMX585_MODE_CROP_BIN_1280X720,
 	IMX585_MODE_CROP_BIN_960X540,
@@ -896,6 +897,23 @@ static struct imx585_mode supported_modes[] = {
 		.min_hmax = 550, .min_vmax = 430,
 		.min_vmax_default = 430,
 		.crop = { .left = 1600, .top = 900, .width = 640, .height = 360 },
+		.reg_list = { ARRAY_SIZE(mode_window_12bit_1x1_regs), mode_window_12bit_1x1_regs },
+	},
+	{
+		/* ClearHDR 12-bit centered 1440x1080 crop, 1x1.
+		 *
+		 * Keep the HDR-12 crop on the proven all-pixel readout path. The
+		 * sensor's native 2x2 binned ClearHDR-12 path is usable for the
+		 * full 1920x1080 mode, but the experimental sensor-windowed 2x2
+		 * variants produced invalid colour data on hardware. Do not expose
+		 * those as HDR modes until their register sequence is validated.
+		 */
+		.width = 1440, .height = 1080, .hmax_div = 1,
+		.binning = 1, .windowed = true,
+		.hmax_table = HMAX_table_4lane_4K_12bit,
+		.min_hmax = 550, .min_vmax = 1150,
+		.min_vmax_default = 1150,
+		.crop = { .left = 1200, .top = 540, .width = 1440, .height = 1080 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_1x1_regs), mode_window_12bit_1x1_regs },
 	},
 	{
@@ -1573,8 +1591,13 @@ static inline void get_mode_table(struct imx585 *imx585, unsigned int code,
 		case MEDIA_BUS_FMT_SBGGR12_1X12:
 			if (imx585->clear_hdr) {
 				if (imx585->clearhdr_ccmp) {
-					*mode_list = supported_modes;
-					*num_modes = IMX585_MODE_4K_16BIT_HDR;
+					/* HDR-12 uses only the validated 1x1 crop family.
+					 * The full 1920x1080 2x2 mode remains available, but
+					 * the experimental windowed 2x2 HDR modes are SDR-only
+					 * until their sensor register sequence is validated.
+					 */
+					*mode_list = &supported_modes[IMX585_MODE_4K_12BIT];
+					*num_modes = IMX585_MODE_CROP_BIN_1440X1080 - IMX585_MODE_4K_12BIT;
 				}
 			} else {
 				*mode_list = supported_modes;
