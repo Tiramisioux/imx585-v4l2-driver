@@ -657,6 +657,16 @@ static const struct cci_reg_sequence mode_window_10bit_1x1_regs[] = {
 	{ CCI_REG8(0x3931), 0x00 },
 };
 
+/* Sensor-windowed RAW10 after the sensor's native 2x2 binning. */
+static const struct cci_reg_sequence mode_window_10bit_2x2_regs[] = {
+	{ CCI_REG8(0x301b), 0x01 }, /* ADDMODE 2x2 */
+	{ CCI_REG8(0x3022), 0x00 }, /* ADBIT RAW10 */
+	{ IMX585_REG_MDBIT, 0x00 }, /* MDBIT RAW10 */
+	{ CCI_REG8(0x30d5), 0x02 }, /* DIG_CLP_VSTART binning */
+	{ CCI_REG8(0x3930), 0x66 },
+	{ CCI_REG8(0x3931), 0x00 },
+};
+
 /*
  * Experimental RAW16 ClearHDR sensor-windowed modes. PIX_VWIDTH is
  * programmed dynamically because the active crop and the RAW16 OB prepend
@@ -997,6 +1007,96 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.reg_list = { ARRAY_SIZE(mode_4k_regs_10bit), mode_4k_regs_10bit },
 	},
 	{
+		/* Native 2x2 binned 1920x1080 RAW10. */
+		.width = 1920, .height = 1080, .hmax_div = 1,
+		.binning = 2, .windowed = false,
+		.hmax_table = HMAX_table_4lane_4K_10bit,
+		.min_hmax = 366, .min_vmax = IMX585_VMAX_DEFAULT,
+		.min_vmax_default = IMX585_VMAX_DEFAULT,
+		.crop = { .left = 0, .top = 0, .width = 1920, .height = 1080 },
+		.reg_list = { ARRAY_SIZE(mode_1080_regs_10bit), mode_1080_regs_10bit },
+	},
+	{
+		/* Centered 1440x1080 crop in the 2x2 output domain. */
+		.width = 1440, .height = 1080, .hmax_div = 1,
+		.binning = 2, .windowed = true,
+		.hmax_table = HMAX_table_4lane_4K_10bit,
+		.min_hmax = 366, .min_vmax = 1150,
+		.min_vmax_default = 1150,
+		.crop = { .left = 240, .top = 0, .width = 1440, .height = 1080 },
+		.reg_list = { ARRAY_SIZE(mode_window_10bit_2x2_regs), mode_window_10bit_2x2_regs },
+	},
+	{
+		/* Centered 1280x720 crop in the 2x2 output domain. */
+		.width = 1280, .height = 720, .hmax_div = 1,
+		.binning = 2, .windowed = true,
+		.hmax_table = HMAX_table_4lane_4K_10bit,
+		.min_hmax = 366, .min_vmax = 790,
+		.min_vmax_default = 790,
+		.crop = { .left = 320, .top = 180, .width = 1280, .height = 720 },
+		.reg_list = { ARRAY_SIZE(mode_window_10bit_2x2_regs), mode_window_10bit_2x2_regs },
+	},
+	{
+		/* Centered 960x540 crop in the 2x2 output domain. */
+		.width = 960, .height = 540, .hmax_div = 1,
+		.binning = 2, .windowed = true,
+		.hmax_table = HMAX_table_4lane_4K_10bit,
+		.min_hmax = 366, .min_vmax = 610,
+		.min_vmax_default = 610,
+		.crop = { .left = 480, .top = 270, .width = 960, .height = 540 },
+		.reg_list = { ARRAY_SIZE(mode_window_10bit_2x2_regs), mode_window_10bit_2x2_regs },
+	},
+	{
+		/* Centered 800x640 crop in the 2x2 output domain. */
+		.width = 800, .height = 640, .hmax_div = 1,
+		.binning = 2, .windowed = true,
+		.hmax_table = HMAX_table_4lane_4K_10bit,
+		.min_hmax = 366, .min_vmax = 710,
+		.min_vmax_default = 710,
+		.crop = { .left = 560, .top = 220, .width = 800, .height = 640 },
+		.reg_list = { ARRAY_SIZE(mode_window_10bit_2x2_regs), mode_window_10bit_2x2_regs },
+	},
+	{
+		/* Centered 800x600 crop in the 2x2 output domain. */
+		.width = 800, .height = 600, .hmax_div = 1,
+		.binning = 2, .windowed = true,
+		.hmax_table = HMAX_table_4lane_4K_10bit,
+		.min_hmax = 366, .min_vmax = 670,
+		.min_vmax_default = 670,
+		.crop = { .left = 560, .top = 240, .width = 800, .height = 600 },
+		.reg_list = { ARRAY_SIZE(mode_window_10bit_2x2_regs), mode_window_10bit_2x2_regs },
+	},
+	{
+		/* Centered 640x360 crop in the 2x2 output domain. */
+		.width = 640, .height = 360, .hmax_div = 1,
+		.binning = 2, .windowed = true,
+		.hmax_table = HMAX_table_4lane_4K_10bit,
+		.min_hmax = 366, .min_vmax = 430,
+		.min_vmax_default = 430,
+		.crop = { .left = 640, .top = 360, .width = 640, .height = 360 },
+		.reg_list = { ARRAY_SIZE(mode_window_10bit_2x2_regs), mode_window_10bit_2x2_regs },
+	},
+	{
+		/* Centered 400x300 crop in the 2x2 output domain. */
+		.width = 400, .height = 300, .hmax_div = 1,
+		.binning = 2, .windowed = true,
+		.hmax_table = HMAX_table_4lane_4K_10bit,
+		.min_hmax = 366, .min_vmax = 370,
+		.min_vmax_default = 370,
+		.crop = { .left = 760, .top = 390, .width = 400, .height = 300 },
+		.reg_list = { ARRAY_SIZE(mode_window_10bit_2x2_regs), mode_window_10bit_2x2_regs },
+	},
+	{
+		/* Existing centered 2880x2160 RAW10 crop, 1x1. */
+		.width = 2880, .height = 2160, .hmax_div = 1,
+		.binning = 1, .windowed = true,
+		.hmax_table = HMAX_table_4lane_4K_10bit,
+		.min_hmax = 366, .min_vmax = 2230,
+		.min_vmax_default = 2230,
+		.crop = { .left = 480, .top = 0, .width = 2880, .height = 2160 },
+		.reg_list = { ARRAY_SIZE(mode_window_10bit_1x1_regs), mode_window_10bit_1x1_regs },
+	},
+	{
 		/* Experimental centered 2880x2160 RAW10 crop, 1x1. */
 		.width = 2880, .height = 2160, .hmax_div = 1,
 		.binning = 1, .windowed = true,
@@ -1261,6 +1361,9 @@ static int imx585_program_window(struct imx585 *imx585,
 	 * the extra 20 rows are the sensor's RAW16 readout overhead, not
 	 * part of the requested active crop.
 	 */
+	/* crop.{left,top,width,height} are expressed in the mode's
+	 * output domain. Convert them back to sensor-pixel coordinates before
+	 * programming WINMODE, including for the native 2x2-binned RAW10 modes. */
 	hst = IMX585_PIXEL_ARRAY_LEFT + mode->crop.left * mode->binning;
 	vst = 12 + mode->crop.top * mode->binning;
 
