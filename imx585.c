@@ -729,9 +729,9 @@ static const struct cci_reg_sequence mode_4k_regs_16bit[] = {
  * Mode array layout:
  *   [0..9] 12-bit SDR/ClearHDR crop modes.
  *   [10] 4K all-pixel 16-bit ClearHDR.
- *   [11..14] 1x1 sensor-windowed 16-bit ClearHDR crops.
- *   [15] 1080p 2x2 binned 16-bit ClearHDR.
- *   [16..19] 2x2 sensor-windowed 16-bit ClearHDR crops.
+ *   [11..13] 1x1 sensor-windowed 16-bit ClearHDR crops.
+ *   [14] 1080p 2x2 binned 16-bit ClearHDR.
+ *   [15] 1440x1080 2x2 sensor-windowed 16-bit ClearHDR crop.
  *
  * RAW16 prepends 20 OB rows for 1x1 and 10 OB rows after 2x2 binning.
  * The windowed RAW16 modes therefore add 20 sensor rows to PIX_VWIDTH,
@@ -747,9 +747,6 @@ enum imx585_mode_id {
 	IMX585_MODE_CROP_1280X720,
 	IMX585_MODE_CROP_800X600,
 	IMX585_MODE_CROP_BIN_1440X1080,
-	IMX585_MODE_CROP_BIN_960X540,
-	IMX585_MODE_CROP_BIN_640X360,
-	IMX585_MODE_CROP_BIN_400X300,
 	IMX585_MODE_4K_16BIT_HDR,
 	IMX585_MODE_CROP_16_2880X2160,
 	IMX585_MODE_CROP_16_1920X1080,
@@ -757,9 +754,6 @@ enum imx585_mode_id {
 	IMX585_MODE_CROP_16_800X600,
 	IMX585_MODE_1080P_16BIT_HDR,
 	IMX585_MODE_CROP_16_BIN_1440X1080,
-	IMX585_MODE_CROP_16_BIN_960X540,
-	IMX585_MODE_CROP_16_BIN_640X360,
-	IMX585_MODE_CROP_16_BIN_400X300,
 };
 
 static struct imx585_mode supported_modes[] = {
@@ -814,16 +808,6 @@ static struct imx585_mode supported_modes[] = {
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_1x1_regs), mode_window_12bit_1x1_regs },
 	},
 	{
-		/* Experimental centered 800x600 crop, 1x1. */
-		.width = 800, .height = 600, .hmax_div = 1,
-		.binning = 1, .windowed = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 670,
-		.min_vmax_default = 670,
-		.crop = { .left = 1520, .top = 780, .width = 800, .height = 600 },
-		.reg_list = { ARRAY_SIZE(mode_window_12bit_1x1_regs), mode_window_12bit_1x1_regs },
-	},
-	{
 		/* Experimental centered 1440x1080 crop after 2x2 binning. */
 		.width = 1440, .height = 1080, .hmax_div = 1,
 		.binning = 2, .windowed = true,
@@ -833,36 +817,7 @@ static struct imx585_mode supported_modes[] = {
 		.crop = { .left = 240, .top = 0, .width = 1440, .height = 1080 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
 	},
-	{
-		/* Experimental centered 960x540 crop after 2x2 binning. */
-		.width = 960, .height = 540, .hmax_div = 1,
-		.binning = 2, .windowed = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 1150,
-		.min_vmax_default = 1150,
-		.crop = { .left = 480, .top = 270, .width = 960, .height = 540 },
-		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
-	},
-	{
-		/* Experimental centered 640x360 crop after 2x2 binning. */
-		.width = 640, .height = 360, .hmax_div = 1,
-		.binning = 2, .windowed = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 790,
-		.min_vmax_default = 790,
-		.crop = { .left = 640, .top = 360, .width = 640, .height = 360 },
-		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
-	},
-	{
-		/* Experimental centered 400x300 crop after 2x2 binning. */
-		.width = 400, .height = 300, .hmax_div = 1,
-		.binning = 2, .windowed = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 670,
-		.min_vmax_default = 670,
-		.crop = { .left = 760, .top = 390, .width = 400, .height = 300 },
-		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
-	},
+
 	{
 		/* Existing 4K all-pixel 16-bit ClearHDR; unchanged. */
 		.width = 3840, .height = 2200, .hmax_div = 1,
@@ -904,16 +859,6 @@ static struct imx585_mode supported_modes[] = {
 		.crop = { .left = 1280, .top = 720, .width = 1280, .height = 720 },
 		.reg_list = { ARRAY_SIZE(mode_window_16bit_1x1_regs), mode_window_16bit_1x1_regs },
 	},
-	{
-		/* Experimental 800x600 1x1 RAW16 ClearHDR crop. */
-		.width = 800, .height = 640, .hmax_div = 1,
-		.binning = 1, .windowed = true, .raw16 = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 690,
-		.min_vmax_default = 690,
-		.crop = { .left = 1520, .top = 780, .width = 800, .height = 600 },
-		.reg_list = { ARRAY_SIZE(mode_window_16bit_1x1_regs), mode_window_16bit_1x1_regs },
-	},
 
 	{
 		/* Existing 1080p 2x2 binned 16-bit ClearHDR; unchanged. */
@@ -933,36 +878,6 @@ static struct imx585_mode supported_modes[] = {
 		.min_hmax = 550, .min_vmax = 2250,
 		.min_vmax_default = 2250,
 		.crop = { .left = 240, .top = 0, .width = 1440, .height = 1080 },
-		.reg_list = { ARRAY_SIZE(mode_window_16bit_2x2_regs), mode_window_16bit_2x2_regs },
-	},
-	{
-		/* Experimental 960x540 2x2 RAW16 ClearHDR crop. */
-		.width = 960, .height = 560, .hmax_div = 1,
-		.binning = 2, .windowed = true, .raw16 = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 1170,
-		.min_vmax_default = 1170,
-		.crop = { .left = 480, .top = 270, .width = 960, .height = 540 },
-		.reg_list = { ARRAY_SIZE(mode_window_16bit_2x2_regs), mode_window_16bit_2x2_regs },
-	},
-	{
-		/* Experimental 640x360 2x2 RAW16 ClearHDR crop. */
-		.width = 640, .height = 380, .hmax_div = 1,
-		.binning = 2, .windowed = true, .raw16 = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 810,
-		.min_vmax_default = 810,
-		.crop = { .left = 640, .top = 360, .width = 640, .height = 360 },
-		.reg_list = { ARRAY_SIZE(mode_window_16bit_2x2_regs), mode_window_16bit_2x2_regs },
-	},
-	{
-		/* Experimental 400x300 2x2 RAW16 ClearHDR crop. */
-		.width = 400, .height = 320, .hmax_div = 1,
-		.binning = 2, .windowed = true, .raw16 = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 690,
-		.min_vmax_default = 690,
-		.crop = { .left = 760, .top = 390, .width = 400, .height = 300 },
 		.reg_list = { ARRAY_SIZE(mode_window_16bit_2x2_regs), mode_window_16bit_2x2_regs },
 	},
 };
@@ -1005,16 +920,6 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.min_hmax = 366, .min_vmax = 790,
 		.min_vmax_default = 790,
 		.crop = { .left = 1280, .top = 720, .width = 1280, .height = 720 },
-		.reg_list = { ARRAY_SIZE(mode_window_10bit_1x1_regs), mode_window_10bit_1x1_regs },
-	},
-	{
-		/* Experimental centered 800x600 RAW10 crop, 1x1. */
-		.width = 800, .height = 600, .hmax_div = 1,
-		.binning = 1, .windowed = true,
-		.hmax_table = HMAX_table_4lane_4K_10bit,
-		.min_hmax = 366, .min_vmax = 670,
-		.min_vmax_default = 670,
-		.crop = { .left = 1520, .top = 780, .width = 800, .height = 600 },
 		.reg_list = { ARRAY_SIZE(mode_window_10bit_1x1_regs), mode_window_10bit_1x1_regs },
 	},
 };
@@ -1302,7 +1207,7 @@ static inline void get_mode_table(struct imx585 *imx585, unsigned int code,
 		case MEDIA_BUS_FMT_SGBRG16_1X16:
 		case MEDIA_BUS_FMT_SBGGR16_1X16:
 			*mode_list = &supported_modes[IMX585_MODE_4K_16BIT_HDR];
-			*num_modes = IMX585_MODE_CROP_16_BIN_400X300 -
+			*num_modes = IMX585_MODE_CROP_16_BIN_1440X1080 -
 				     IMX585_MODE_4K_16BIT_HDR + 1;
 			break;
 
