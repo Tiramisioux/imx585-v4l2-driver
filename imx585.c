@@ -41,6 +41,12 @@
 #define V4L2_CID_IMX585_VMAX            (V4L2_CID_USER_IMX585_BASE + 7)
 #define V4L2_CID_IMX585_HMAX            (V4L2_CID_USER_IMX585_BASE + 8)
 #define V4L2_CID_IMX585_SHR             (V4L2_CID_USER_IMX585_BASE + 9)
+/* Read-only mode metadata. These are updated whenever the active mode changes. */
+#define V4L2_CID_IMX585_BINNING         (V4L2_CID_USER_IMX585_BASE + 10)
+#define V4L2_CID_IMX585_CROP_LEFT       (V4L2_CID_USER_IMX585_BASE + 11)
+#define V4L2_CID_IMX585_CROP_TOP        (V4L2_CID_USER_IMX585_BASE + 12)
+#define V4L2_CID_IMX585_CROP_WIDTH      (V4L2_CID_USER_IMX585_BASE + 13)
+#define V4L2_CID_IMX585_CROP_HEIGHT     (V4L2_CID_USER_IMX585_BASE + 14)
 
 /* --------------------------------------------------------------------------
  * Registers / limits
@@ -1003,6 +1009,15 @@ struct imx585 {
 	struct v4l2_ctrl *hmax_ctrl;
 	struct v4l2_ctrl *shr_ctrl;
 
+	/* Read-only mode metadata consumed by applications that need the
+	 * sensor's actual readout geometry rather than inferring it from
+	 * the output format. */
+	struct v4l2_ctrl *binning_ctrl;
+	struct v4l2_ctrl *crop_left_ctrl;
+	struct v4l2_ctrl *crop_top_ctrl;
+	struct v4l2_ctrl *crop_width_ctrl;
+	struct v4l2_ctrl *crop_height_ctrl;
+
 	/* HDR controls */
 	struct v4l2_ctrl *hdr_mode;
 	struct v4l2_ctrl *datasel_th_ctrl;
@@ -1472,6 +1487,21 @@ static void imx585_update_hmax(struct imx585 *imx585)
 	}
 }
 
+static void imx585_update_mode_metadata(struct imx585 *imx585,
+					      const struct imx585_mode *mode)
+{
+	u32 left = mode->windowed ? mode->crop.left : 0;
+	u32 top = mode->windowed ? mode->crop.top : 0;
+	u32 width = mode->windowed ? mode->crop.width : IMX585_PIXEL_ARRAY_WIDTH;
+	u32 height = mode->windowed ? mode->crop.height : IMX585_PIXEL_ARRAY_HEIGHT;
+
+	__v4l2_ctrl_s_ctrl(imx585->binning_ctrl, mode->binning);
+	__v4l2_ctrl_s_ctrl(imx585->crop_left_ctrl, left);
+	__v4l2_ctrl_s_ctrl(imx585->crop_top_ctrl, top);
+	__v4l2_ctrl_s_ctrl(imx585->crop_width_ctrl, width);
+	__v4l2_ctrl_s_ctrl(imx585->crop_height_ctrl, height);
+}
+
 static void imx585_set_framing_limits(struct imx585 *imx585,
 				      const struct imx585_mode *mode)
 {
@@ -1482,6 +1512,8 @@ static void imx585_set_framing_limits(struct imx585 *imx585,
 
 	imx585->vmax = mode->min_vmax;
 	imx585->hmax = mode->min_hmax;
+
+	imx585_update_mode_metadata(imx585, mode);
 
 	/* Pixel rate proxy: width * clock / min_hmax */
 	pixel_rate = (u64)mode->width * IMX585_PIXEL_RATE;
@@ -1883,6 +1915,32 @@ static const struct v4l2_ctrl_config imx585_cfg_vmax = {
 	.step = 1,
 };
 
+static const struct v4l2_ctrl_config imx585_cfg_binning = {
+	.ops = &imx585_ctrl_ops, .id = V4L2_CID_IMX585_BINNING,
+	.name = "Mode Binning", .type = V4L2_CTRL_TYPE_INTEGER,
+	.min = 1, .max = 2, .step = 1, .def = 1,
+};
+static const struct v4l2_ctrl_config imx585_cfg_crop_left = {
+	.ops = &imx585_ctrl_ops, .id = V4L2_CID_IMX585_CROP_LEFT,
+	.name = "Mode Crop Left", .type = V4L2_CTRL_TYPE_INTEGER,
+	.min = 0, .max = IMX585_PIXEL_ARRAY_WIDTH, .step = 1, .def = 0,
+};
+static const struct v4l2_ctrl_config imx585_cfg_crop_top = {
+	.ops = &imx585_ctrl_ops, .id = V4L2_CID_IMX585_CROP_TOP,
+	.name = "Mode Crop Top", .type = V4L2_CTRL_TYPE_INTEGER,
+	.min = 0, .max = IMX585_PIXEL_ARRAY_HEIGHT, .step = 1, .def = 0,
+};
+static const struct v4l2_ctrl_config imx585_cfg_crop_width = {
+	.ops = &imx585_ctrl_ops, .id = V4L2_CID_IMX585_CROP_WIDTH,
+	.name = "Mode Crop Width", .type = V4L2_CTRL_TYPE_INTEGER,
+	.min = 0, .max = IMX585_PIXEL_ARRAY_WIDTH, .step = 1, .def = IMX585_PIXEL_ARRAY_WIDTH,
+};
+static const struct v4l2_ctrl_config imx585_cfg_crop_height = {
+	.ops = &imx585_ctrl_ops, .id = V4L2_CID_IMX585_CROP_HEIGHT,
+	.name = "Mode Crop Height", .type = V4L2_CTRL_TYPE_INTEGER,
+	.min = 0, .max = IMX585_PIXEL_ARRAY_HEIGHT, .step = 1, .def = IMX585_PIXEL_ARRAY_HEIGHT,
+};
+
 static const struct v4l2_ctrl_config imx585_cfg_shr = {
 	.ops  = &imx585_ctrl_ops,
 	.id   = V4L2_CID_IMX585_SHR,
@@ -1947,6 +2005,15 @@ static int imx585_init_controls(struct imx585 *imx585)
 	imx585->vmax_ctrl        = v4l2_ctrl_new_custom(hdl, &imx585_cfg_vmax, NULL);
 	imx585->hmax_ctrl        = v4l2_ctrl_new_custom(hdl, &imx585_cfg_hmax, NULL);
 	imx585->shr_ctrl        = v4l2_ctrl_new_custom(hdl, &imx585_cfg_shr, NULL);
+	imx585->binning_ctrl     = v4l2_ctrl_new_custom(hdl, &imx585_cfg_binning, NULL);
+	imx585->crop_left_ctrl   = v4l2_ctrl_new_custom(hdl, &imx585_cfg_crop_left, NULL);
+	imx585->crop_top_ctrl    = v4l2_ctrl_new_custom(hdl, &imx585_cfg_crop_top, NULL);
+	imx585->crop_width_ctrl  = v4l2_ctrl_new_custom(hdl, &imx585_cfg_crop_width, NULL);
+	imx585->crop_height_ctrl = v4l2_ctrl_new_custom(hdl, &imx585_cfg_crop_height, NULL);
+	for (struct v4l2_ctrl *c : (struct v4l2_ctrl *[]) {
+		imx585->binning_ctrl, imx585->crop_left_ctrl, imx585->crop_top_ctrl,
+		imx585->crop_width_ctrl, imx585->crop_height_ctrl })
+		c->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 
 	v4l2_ctrl_new_std_menu_items(hdl, &imx585_ctrl_ops,
 				     V4L2_CID_TEST_PATTERN,
