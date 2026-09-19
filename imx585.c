@@ -632,6 +632,7 @@ static const struct cci_reg_sequence mode_1080_regs_10bit[] = {
 	{ CCI_REG8(0x30d5), 0x02 }, /* DIG_CLP_VSTART binning */
 	{ CCI_REG8(0x3930), 0x66 },
 	{ CCI_REG8(0x3931), 0x00 },
+	IMX585_WIN_CROP_REGS_12BIT,
 };
 
 /* 2x2 binned 1080p, 12-bit */
