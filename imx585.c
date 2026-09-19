@@ -2010,10 +2010,11 @@ static int imx585_init_controls(struct imx585 *imx585)
 	imx585->crop_top_ctrl    = v4l2_ctrl_new_custom(hdl, &imx585_cfg_crop_top, NULL);
 	imx585->crop_width_ctrl  = v4l2_ctrl_new_custom(hdl, &imx585_cfg_crop_width, NULL);
 	imx585->crop_height_ctrl = v4l2_ctrl_new_custom(hdl, &imx585_cfg_crop_height, NULL);
-	for (struct v4l2_ctrl *c : (struct v4l2_ctrl *[]) {
-		imx585->binning_ctrl, imx585->crop_left_ctrl, imx585->crop_top_ctrl,
-		imx585->crop_width_ctrl, imx585->crop_height_ctrl })
-		c->flags |= V4L2_CTRL_FLAG_READ_ONLY;
+	imx585->binning_ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
+	imx585->crop_left_ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
+	imx585->crop_top_ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
+	imx585->crop_width_ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
+	imx585->crop_height_ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 
 	v4l2_ctrl_new_std_menu_items(hdl, &imx585_ctrl_ops,
 				     V4L2_CID_TEST_PATTERN,
