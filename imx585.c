@@ -850,16 +850,7 @@ static struct imx585_mode supported_modes[] = {
 		.crop = { .left = 1280, .top = 720, .width = 1280, .height = 720 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_1x1_regs), mode_window_12bit_1x1_regs },
 	},
-	{
-		/* Experimental centered 1440x1080 crop after 2x2 binning. */
-		.width = 1440, .height = 1080, .hmax_div = 1,
-		.binning = 2, .windowed = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 2230,
-		.min_vmax_default = 2230,
-		.crop = { .left = 240, .top = 0, .width = 1440, .height = 1080 },
-		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
-	},
+
 	{
 		/* Experimental centered 960x540 crop, 1x1. */
 		.width = 960, .height = 540, .hmax_div = 1,
@@ -927,6 +918,16 @@ static struct imx585_mode supported_modes[] = {
 		.min_vmax_default = 1150,
 		.crop = { .left = 1200, .top = 540, .width = 1440, .height = 1080 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_1x1_regs), mode_window_12bit_1x1_regs },
+	},
+	{
+		/* Experimental centered 1440x1080 crop after 2x2 binning. */
+		.width = 1440, .height = 1080, .hmax_div = 1,
+		.binning = 2, .windowed = true,
+		.hmax_table = HMAX_table_4lane_4K_12bit,
+		.min_hmax = 550, .min_vmax = 2230,
+		.min_vmax_default = 2230,
+		.crop = { .left = 240, .top = 0, .width = 1440, .height = 1080 },
+		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
 	},
 
 	{
