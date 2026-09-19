@@ -754,8 +754,8 @@ static const struct cci_reg_sequence mode_4k_regs_16bit[] = {
 
 /*
  * Mode array layout:
- *   [0..5] 12-bit SDR/ClearHDR modes (1080p, 4K, 2880x2160,
- *       1920x1080, 1280x720, 1440x1080).
+ *   12-bit modes: 1080p, 4K, 1x1 crops (2880x2160 down to 400x300),
+ *       then the 1x1 ClearHDR 1440x1080 crop and 2x2 crops.
  *   [6] 4K all-pixel 16-bit ClearHDR.
  *   [7..9] 1x1 sensor-windowed 16-bit ClearHDR crops.
  *   [10] 1080p 2x2 binned 16-bit ClearHDR.
@@ -765,7 +765,8 @@ static const struct cci_reg_sequence mode_4k_regs_16bit[] = {
  * The windowed RAW16 modes therefore add 20 sensor rows to PIX_VWIDTH,
  * while the advertised buffer height includes the resulting OB rows too.
  * The 16-bit entries are contiguous so get_mode_table() can expose all
- * colour RAW16 modes as one range. Modes at 960x540 and below are omitted.
+ * colour RAW16 modes as one range. The small 12-bit crops remain exposed
+ * for sensor testing; CineMate may hide them in its normal operator view.
  */
 enum imx585_mode_id {
 	IMX585_MODE_1080P_12BIT,
@@ -899,6 +900,17 @@ static struct imx585_mode supported_modes[] = {
 		.crop = { .left = 1600, .top = 900, .width = 640, .height = 360 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_1x1_regs), mode_window_12bit_1x1_regs },
 	},
+
+	{
+		/* Experimental centered 400x300 crop, 1x1. */
+		.width = 400, .height = 300, .hmax_div = 1,
+		.binning = 1, .windowed = true,
+		.hmax_table = HMAX_table_4lane_4K_12bit,
+		.min_hmax = 550, .min_vmax = 370,
+		.min_vmax_default = 370,
+		.crop = { .left = 1720, .top = 930, .width = 400, .height = 300 },
+		.reg_list = { ARRAY_SIZE(mode_window_12bit_1x1_regs), mode_window_12bit_1x1_regs },
+	},
 	{
 		/* ClearHDR 12-bit centered 1440x1080 crop, 1x1.
 		 *
@@ -914,16 +926,6 @@ static struct imx585_mode supported_modes[] = {
 		.min_hmax = 550, .min_vmax = 1150,
 		.min_vmax_default = 1150,
 		.crop = { .left = 1200, .top = 540, .width = 1440, .height = 1080 },
-		.reg_list = { ARRAY_SIZE(mode_window_12bit_1x1_regs), mode_window_12bit_1x1_regs },
-	},
-	{
-		/* Experimental centered 400x300 crop, 1x1. */
-		.width = 400, .height = 300, .hmax_div = 1,
-		.binning = 1, .windowed = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 370,
-		.min_vmax_default = 370,
-		.crop = { .left = 1720, .top = 930, .width = 400, .height = 300 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_1x1_regs), mode_window_12bit_1x1_regs },
 	},
 
