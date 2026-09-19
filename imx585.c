@@ -727,17 +727,18 @@ static const struct cci_reg_sequence mode_4k_regs_16bit[] = {
 
 /*
  * Mode array layout:
- *   [0..9] 12-bit SDR/ClearHDR crop modes.
- *   [10] 4K all-pixel 16-bit ClearHDR.
- *   [11..13] 1x1 sensor-windowed 16-bit ClearHDR crops.
- *   [14] 1080p 2x2 binned 16-bit ClearHDR.
- *   [15] 1440x1080 2x2 sensor-windowed 16-bit ClearHDR crop.
+ *   [0..5] 12-bit SDR/ClearHDR modes (1080p, 4K, 2880x2160,
+ *       1920x1080, 1280x720, 1440x1080).
+ *   [6] 4K all-pixel 16-bit ClearHDR.
+ *   [7..9] 1x1 sensor-windowed 16-bit ClearHDR crops.
+ *   [10] 1080p 2x2 binned 16-bit ClearHDR.
+ *   [11] 1440x1080 2x2 sensor-windowed 16-bit ClearHDR crop.
  *
  * RAW16 prepends 20 OB rows for 1x1 and 10 OB rows after 2x2 binning.
  * The windowed RAW16 modes therefore add 20 sensor rows to PIX_VWIDTH,
  * while the advertised buffer height includes the resulting OB rows too.
  * The 16-bit entries are contiguous so get_mode_table() can expose all
- * colour RAW16 modes as one range.
+ * colour RAW16 modes as one range. Modes at 960x540 and below are omitted.
  */
 enum imx585_mode_id {
 	IMX585_MODE_1080P_12BIT,
@@ -745,7 +746,6 @@ enum imx585_mode_id {
 	IMX585_MODE_CROP_2880X2160,
 	IMX585_MODE_CROP_1920X1080,
 	IMX585_MODE_CROP_1280X720,
-	IMX585_MODE_CROP_800X600,
 	IMX585_MODE_CROP_BIN_1440X1080,
 	IMX585_MODE_4K_16BIT_HDR,
 	IMX585_MODE_CROP_16_2880X2160,
@@ -1184,7 +1184,7 @@ static inline void get_mode_table(struct imx585 *imx585, unsigned int code,
 				}
 			} else {
 				*mode_list = supported_modes;
-				*num_modes = IMX585_MODE_1080P_16BIT_HDR;
+				*num_modes = IMX585_MODE_4K_16BIT_HDR;
 			}
 		} else if (code == MEDIA_BUS_FMT_Y10_1X10 && !imx585->clear_hdr) {
 			*mode_list = supported_10bit_modes;   /* 4K 10-bit */
@@ -1226,11 +1226,11 @@ static inline void get_mode_table(struct imx585 *imx585, unsigned int code,
 			if (imx585->clear_hdr) {
 				if (imx585->clearhdr_ccmp) {
 					*mode_list = supported_modes;
-					*num_modes = IMX585_MODE_1080P_16BIT_HDR;
+					*num_modes = IMX585_MODE_4K_16BIT_HDR;
 				}
 			} else {
 				*mode_list = supported_modes;
-				*num_modes = IMX585_MODE_1080P_16BIT_HDR;
+				*num_modes = IMX585_MODE_4K_16BIT_HDR;
 			}
 			break;
 		case MEDIA_BUS_FMT_SRGGB10_1X10:
