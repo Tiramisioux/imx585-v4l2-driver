@@ -1107,16 +1107,6 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.reg_list = { ARRAY_SIZE(mode_window_10bit_1x1_regs), mode_window_10bit_1x1_regs },
 	},
 	{
-		/* Experimental centered 2880x2160 RAW10 crop, 1x1. */
-		.width = 2880, .height = 2160, .hmax_div = 1,
-		.binning = 1, .windowed = true,
-		.hmax_table = HMAX_table_4lane_4K_10bit,
-		.min_hmax = 366, .min_vmax = 2230,
-		.min_vmax_default = 2230,
-		.crop = { .left = 480, .top = 0, .width = 2880, .height = 2160 },
-		.reg_list = { ARRAY_SIZE(mode_window_10bit_1x1_regs), mode_window_10bit_1x1_regs },
-	},
-	{
 		/* Experimental centered 1920x1080 RAW10 crop, 1x1. */
 		.width = 1920, .height = 1080, .hmax_div = 1,
 		.binning = 1, .windowed = true,
@@ -1144,6 +1134,46 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.min_hmax = 366, .min_vmax = 670,
 		.min_vmax_default = 670,
 		.crop = { .left = 1520, .top = 780, .width = 800, .height = 600 },
+		.reg_list = { ARRAY_SIZE(mode_window_10bit_1x1_regs), mode_window_10bit_1x1_regs },
+	},
+	{
+		/* Centered 800x640 RAW10 crop, 1x1. */
+		.width = 800, .height = 640, .hmax_div = 1,
+		.binning = 1, .windowed = true,
+		.hmax_table = HMAX_table_4lane_4K_10bit,
+		.min_hmax = 366, .min_vmax = 710,
+		.min_vmax_default = 710,
+		.crop = { .left = 1520, .top = 760, .width = 800, .height = 640 },
+		.reg_list = { ARRAY_SIZE(mode_window_10bit_1x1_regs), mode_window_10bit_1x1_regs },
+	},
+	{
+		/* Centered 960x540 RAW10 crop, 1x1. */
+		.width = 960, .height = 540, .hmax_div = 1,
+		.binning = 1, .windowed = true,
+		.hmax_table = HMAX_table_4lane_4K_10bit,
+		.min_hmax = 366, .min_vmax = 610,
+		.min_vmax_default = 610,
+		.crop = { .left = 1440, .top = 810, .width = 960, .height = 540 },
+		.reg_list = { ARRAY_SIZE(mode_window_10bit_1x1_regs), mode_window_10bit_1x1_regs },
+	},
+	{
+		/* Centered 640x360 RAW10 crop, 1x1. */
+		.width = 640, .height = 360, .hmax_div = 1,
+		.binning = 1, .windowed = true,
+		.hmax_table = HMAX_table_4lane_4K_10bit,
+		.min_hmax = 366, .min_vmax = 430,
+		.min_vmax_default = 430,
+		.crop = { .left = 1600, .top = 900, .width = 640, .height = 360 },
+		.reg_list = { ARRAY_SIZE(mode_window_10bit_1x1_regs), mode_window_10bit_1x1_regs },
+	},
+	{
+		/* Centered 400x300 RAW10 crop, 1x1. */
+		.width = 400, .height = 300, .hmax_div = 1,
+		.binning = 1, .windowed = true,
+		.hmax_table = HMAX_table_4lane_4K_10bit,
+		.min_hmax = 366, .min_vmax = 370,
+		.min_vmax_default = 370,
+		.crop = { .left = 1720, .top = 930, .width = 400, .height = 300 },
 		.reg_list = { ARRAY_SIZE(mode_window_10bit_1x1_regs), mode_window_10bit_1x1_regs },
 	},
 };
