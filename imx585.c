@@ -364,8 +364,8 @@ enum {
 
 static const char * const sync_mode_menu[] = {
 	"Internal Sync Leader Mode",
-	"External Sync Leader Mode",
-	"Follower Mode",
+	"Internal Sync Follower Mode",
+	"External Sync Mode",
 };
 
 /* Mode description */
@@ -779,6 +779,12 @@ enum imx585_mode_id {
 	IMX585_MODE_CROP_640X360,
 	IMX585_MODE_CROP_400X300,
 	IMX585_MODE_CROP_BIN_1440X1080,
+	IMX585_MODE_CROP_BIN_1280X720,
+	IMX585_MODE_CROP_BIN_960X540,
+	IMX585_MODE_CROP_BIN_800X640,
+	IMX585_MODE_CROP_BIN_800X600,
+	IMX585_MODE_CROP_BIN_640X360,
+	IMX585_MODE_CROP_BIN_400X300,
 	IMX585_MODE_4K_16BIT_HDR,
 	IMX585_MODE_CROP_16_2880X2160,
 	IMX585_MODE_CROP_16_1920X1080,
@@ -901,6 +907,67 @@ static struct imx585_mode supported_modes[] = {
 		.min_vmax_default = 370,
 		.crop = { .left = 1720, .top = 930, .width = 400, .height = 300 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_1x1_regs), mode_window_12bit_1x1_regs },
+	},
+
+	{
+		/* Centered 1280x720 crop in the 2x2 RAW12 output domain. */
+		.width = 1280, .height = 720, .hmax_div = 1,
+		.binning = 2, .windowed = true,
+		.hmax_table = HMAX_table_4lane_4K_12bit,
+		.min_hmax = 550, .min_vmax = 790,
+		.min_vmax_default = 790,
+		.crop = { .left = 320, .top = 180, .width = 1280, .height = 720 },
+		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
+	},
+	{
+		/* Centered 960x540 crop in the 2x2 RAW12 output domain. */
+		.width = 960, .height = 540, .hmax_div = 1,
+		.binning = 2, .windowed = true,
+		.hmax_table = HMAX_table_4lane_4K_12bit,
+		.min_hmax = 550, .min_vmax = 610,
+		.min_vmax_default = 610,
+		.crop = { .left = 480, .top = 270, .width = 960, .height = 540 },
+		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
+	},
+	{
+		/* Centered 800x640 crop in the 2x2 RAW12 output domain. */
+		.width = 800, .height = 640, .hmax_div = 1,
+		.binning = 2, .windowed = true,
+		.hmax_table = HMAX_table_4lane_4K_12bit,
+		.min_hmax = 550, .min_vmax = 710,
+		.min_vmax_default = 710,
+		.crop = { .left = 560, .top = 220, .width = 800, .height = 640 },
+		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
+	},
+	{
+		/* Centered 800x600 crop in the 2x2 RAW12 output domain. */
+		.width = 800, .height = 600, .hmax_div = 1,
+		.binning = 2, .windowed = true,
+		.hmax_table = HMAX_table_4lane_4K_12bit,
+		.min_hmax = 550, .min_vmax = 670,
+		.min_vmax_default = 670,
+		.crop = { .left = 560, .top = 240, .width = 800, .height = 600 },
+		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
+	},
+	{
+		/* Centered 640x360 crop in the 2x2 RAW12 output domain. */
+		.width = 640, .height = 360, .hmax_div = 1,
+		.binning = 2, .windowed = true,
+		.hmax_table = HMAX_table_4lane_4K_12bit,
+		.min_hmax = 550, .min_vmax = 430,
+		.min_vmax_default = 430,
+		.crop = { .left = 640, .top = 360, .width = 640, .height = 360 },
+		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
+	},
+	{
+		/* Centered 400x300 crop in the 2x2 RAW12 output domain. */
+		.width = 400, .height = 300, .hmax_div = 1,
+		.binning = 2, .windowed = true,
+		.hmax_table = HMAX_table_4lane_4K_12bit,
+		.min_hmax = 550, .min_vmax = 370,
+		.min_vmax_default = 370,
+		.crop = { .left = 760, .top = 390, .width = 400, .height = 300 },
+		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
 	},
 
 	{
@@ -1285,8 +1352,8 @@ struct imx585 {
 	/*
 	 * Sync Mode
 	 * 0 = Internal Sync Leader Mode
-	 * 1 = External Sync Leader Mode
-	 * 2 = Follower Mode
+	 * 1 = Internal Sync Follower Mode
+	 * 2 = External Sync Mode
 	 * The datasheet wording is very confusing but basically:
 	 * Leader Mode = Sensor using internal clock to drive the sensor
 	 * But with external sync mode you can send a XVS input so the sensor
