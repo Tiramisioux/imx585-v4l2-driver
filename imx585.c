@@ -1490,10 +1490,10 @@ static void imx585_update_hmax(struct imx585 *imx585)
 static void imx585_update_mode_metadata(struct imx585 *imx585,
 					      const struct imx585_mode *mode)
 {
-	u32 left = mode->windowed ? mode->crop.left : 0;
-	u32 top = mode->windowed ? mode->crop.top : 0;
-	u32 width = mode->windowed ? mode->crop.width : IMX585_PIXEL_ARRAY_WIDTH;
-	u32 height = mode->windowed ? mode->crop.height : IMX585_PIXEL_ARRAY_HEIGHT;
+	u32 left = mode->windowed ? mode->crop.left * mode->binning : 0;
+	u32 top = mode->windowed ? mode->crop.top * mode->binning : 0;
+	u32 width = mode->windowed ? mode->crop.width * mode->binning : IMX585_PIXEL_ARRAY_WIDTH;
+	u32 height = mode->windowed ? mode->crop.height * mode->binning : IMX585_PIXEL_ARRAY_HEIGHT;
 
 	__v4l2_ctrl_s_ctrl(imx585->binning_ctrl, mode->binning);
 	__v4l2_ctrl_s_ctrl(imx585->crop_left_ctrl, left);
