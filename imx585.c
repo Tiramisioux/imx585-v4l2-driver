@@ -2847,12 +2847,24 @@ out_put:
 
 /*
  * Audit one mode table (called for supported_modes[] and
- * supported_10bit_modes[] once imx585_update_hmax() has filled in
- * min_hmax/min_vmax for the probed link/lane configuration) against the
- * invariants WP-585-1 through WP-585-5 established. This table has broken
- * in four independent ways in one day of history, and every failure showed
- * up either at stream-on or as a bad image, never at build time -- so warn
- * loudly here instead of trusting a static initialiser to stay correct.
+ * supported_10bit_modes[]) against the invariants WP-585-1 through
+ * WP-585-5 established. This table has broken in four independent ways in
+ * one day of history, and every failure showed up either at stream-on or
+ * as a bad image, never at build time -- so warn loudly here instead of
+ * trusting a static initialiser to stay correct.
+ *
+ * Deliberately table-only: every predicate here is derived from the
+ * table's own static fields (crop/binning/raw16/min_vmax_default), never
+ * from a `struct imx585` instance's runtime state (lane_count,
+ * link_freq_idx, clear_hdr, ...). supported_modes[]/supported_10bit_modes[]
+ * are process-wide arrays shared by every sensor the module binds -- on
+ * CineMate's dual-imx585 rigs two probes are not mutually exclusive in
+ * time, so this audit must never call imx585_update_hmax() (which writes
+ * per-instance-derived min_hmax/min_vmax into that shared state) or read
+ * its output. Checking the static, HDR-unscaled floor here is exactly what
+ * WP-585-2's table-authoring invariant requires; the HDR-scaled runtime
+ * floor is independently re-derived and enforced per device at every
+ * mode-select via imx585_set_framing_limits() -> imx585_update_hmax().
  *
  * Warn only: never fail probe over this. A camera that enumerates with a
  * warning is debuggable; one that does not bind is not.
@@ -2889,16 +2901,29 @@ static void imx585_check_mode_table(struct device *dev,
 					 table_name, i, m->width, m->height);
 		}
 
-		/* Same VMAX-floor derivation as imx585_update_hmax(): the
-		 * final min_vmax (post hdr_scale) must never sit below the
-		 * unscaled per-window floor it is derived from. */
+		/*
+		 * Same VMAX-floor derivation as imx585_update_hmax()'s
+		 * windowed branch, but computed from the table entry alone
+		 * at hdr_scale=1: an entry's min_vmax_default override (when
+		 * set) must never authorize a floor below the window's own
+		 * required minimum. This is the static invariant the table
+		 * must satisfy independent of any device's runtime HDR
+		 * state -- min_vmax itself is per-instance-derived shared
+		 * state that has not been (and must not be) computed here.
+		 */
 		vwidth = m->crop.height +
 			 (m->raw16 ? IMX585_PIXEL_ARRAY_TOP_4K : 0);
-		if (m->windowed && m->min_vmax < IMX585_CROP_VMAX(vwidth))
-			dev_warn(dev,
-				 "%s[%u] %ux%u: VMAX floor %u is below the window's required %u\n",
-				 table_name, i, m->width, m->height,
-				 m->min_vmax, IMX585_CROP_VMAX(vwidth));
+		if (m->windowed) {
+			u32 required = IMX585_CROP_VMAX(vwidth);
+			u32 floor = m->min_vmax_default ?
+				m->min_vmax_default : required;
+
+			if (floor < required)
+				dev_warn(dev,
+					 "%s[%u] %ux%u: VMAX floor %u is below the window's required %u\n",
+					 table_name, i, m->width, m->height,
+					 floor, required);
+		}
 
 		/* crop.{left,top} + crop.{width,height} must stay inside the
 		 * active pixel array regardless of windowed/binning/raw16. */
@@ -3018,11 +3043,20 @@ static int imx585_probe(struct i2c_client *client)
 		return ret;
 
 	/*
-	 * Audit the mode tables now that lane/link parameters are known and
-	 * imx585_update_hmax() has filled in min_hmax/min_vmax, before any
-	 * register is touched and before any mode is selected.
+	 * Audit the mode tables' own static invariants before any register
+	 * is touched and before any mode is selected. Deliberately does NOT
+	 * call imx585_update_hmax(): that call writes this device's
+	 * lane_count/link_freq_idx/clear_hdr-derived HMAX/VMAX into
+	 * supported_modes[]/supported_10bit_modes[], which are process-wide
+	 * arrays shared by every imx585 instance the module binds. CineMate
+	 * ships dual-imx585 rigs plus a runtime dtoverlay try-bind/reprobe
+	 * loop for sensor auto-detect, so two sensors' probe() calls are not
+	 * mutually exclusive in time -- calling the mutator here would let
+	 * one device's (re)probe silently overwrite the shared table entries
+	 * an already-streaming sensor still depends on. The real per-device
+	 * HMAX/VMAX are computed at mode-select time instead, in
+	 * imx585_set_framing_limits().
 	 */
-	imx585_update_hmax(imx585);
 	imx585_check_mode_tables(dev);
 
 	imx585->regmap = devm_cci_regmap_init_i2c(client, 16);
