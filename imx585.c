@@ -2845,6 +2845,104 @@ out_put:
 	return ret;
 }
 
+/*
+ * Audit one mode table (called for supported_modes[] and
+ * supported_10bit_modes[] once imx585_update_hmax() has filled in
+ * min_hmax/min_vmax for the probed link/lane configuration) against the
+ * invariants WP-585-1 through WP-585-5 established. This table has broken
+ * in four independent ways in one day of history, and every failure showed
+ * up either at stream-on or as a bad image, never at build time -- so warn
+ * loudly here instead of trusting a static initialiser to stay correct.
+ *
+ * Warn only: never fail probe over this. A camera that enumerates with a
+ * warning is debuggable; one that does not bind is not.
+ */
+static void imx585_check_mode_table(struct device *dev,
+				    struct imx585_mode *table,
+				    unsigned int num_modes,
+				    const char *table_name)
+{
+	unsigned int i, j;
+
+	for (i = 0; i < num_modes; ++i) {
+		struct imx585_mode *m = &table[i];
+		u32 vwidth;
+
+		/* Same alignment predicate imx585_program_window() enforces
+		 * before it will write WINMODE and the PIX_H/PIX_V registers
+		 * for this entry.
+		 */
+		if (m->windowed) {
+			u32 sensor_width = m->crop.width;
+			u32 sensor_height = m->crop.height;
+			u32 hst = IMX585_PIXEL_ARRAY_LEFT + m->crop.left;
+			u32 vst = 12 + m->crop.top;
+
+			if (sensor_width < 64 ||
+			    sensor_width > IMX585_PIXEL_ARRAY_WIDTH ||
+			    sensor_height < 239 ||
+			    sensor_height > IMX585_PIXEL_ARRAY_HEIGHT ||
+			    (hst & 1) || (sensor_width & 15) || (vst & 3) ||
+			    (sensor_height & 3) || !hst)
+				dev_warn(dev,
+					 "%s[%u] %ux%u: window fails imx585_program_window()'s alignment check\n",
+					 table_name, i, m->width, m->height);
+		}
+
+		/* Same VMAX-floor derivation as imx585_update_hmax(): the
+		 * final min_vmax (post hdr_scale) must never sit below the
+		 * unscaled per-window floor it is derived from. */
+		vwidth = m->crop.height +
+			 (m->raw16 ? IMX585_PIXEL_ARRAY_TOP_4K : 0);
+		if (m->windowed && m->min_vmax < IMX585_CROP_VMAX(vwidth))
+			dev_warn(dev,
+				 "%s[%u] %ux%u: VMAX floor %u is below the window's required %u\n",
+				 table_name, i, m->width, m->height,
+				 m->min_vmax, IMX585_CROP_VMAX(vwidth));
+
+		/* crop.{left,top} + crop.{width,height} must stay inside the
+		 * active pixel array regardless of windowed/binning/raw16. */
+		if (m->crop.left + m->crop.width > IMX585_PIXEL_ARRAY_WIDTH ||
+		    m->crop.top + m->crop.height > IMX585_PIXEL_ARRAY_HEIGHT)
+			dev_warn(dev,
+				 "%s[%u] %ux%u: crop rectangle leaves the pixel array\n",
+				 table_name, i, m->width, m->height);
+
+		/* RAW16 prepends IMX585_PIXEL_ARRAY_TOP_4K OB rows; at 1x1
+		 * they land at both ends of the buffer (+2x), at 2x2 the
+		 * window is binned before the OB rows are counted (+1x). */
+		if (m->raw16) {
+			u32 expected = (m->binning == 2) ?
+				m->crop.height / 2 + IMX585_PIXEL_ARRAY_TOP_4K :
+				m->crop.height + 2 * IMX585_PIXEL_ARRAY_TOP_4K;
+
+			if (m->height != expected)
+				dev_warn(dev,
+					 "%s[%u]: RAW16 advertised height %u != delivered buffer height %u\n",
+					 table_name, i, m->height, expected);
+		}
+
+		for (j = 0; j < i; ++j) {
+			if (table[j].width == m->width &&
+			    table[j].height == m->height) {
+				dev_warn(dev,
+					 "%s[%u] and [%u] both advertise %ux%u\n",
+					 table_name, j, i, m->width, m->height);
+				break;
+			}
+		}
+	}
+}
+
+static void imx585_check_mode_tables(struct device *dev)
+{
+	imx585_check_mode_table(dev, supported_modes,
+				ARRAY_SIZE(supported_modes), "supported_modes");
+	imx585_check_mode_table(dev, supported_10bit_modes,
+				ARRAY_SIZE(supported_10bit_modes),
+				"supported_10bit_modes");
+}
+
 static int imx585_get_regulators(struct imx585 *imx585)
 {
 	unsigned int i;
@@ -2918,6 +3016,14 @@ static int imx585_probe(struct i2c_client *client)
 	ret = imx585_check_hwcfg(dev, imx585);
 	if (ret)
 		return ret;
+
+	/*
+	 * Audit the mode tables now that lane/link parameters are known and
+	 * imx585_update_hmax() has filled in min_hmax/min_vmax, before any
+	 * register is touched and before any mode is selected.
+	 */
+	imx585_update_hmax(imx585);
+	imx585_check_mode_tables(dev);
 
 	imx585->regmap = devm_cci_regmap_init_i2c(client, 16);
 	if (IS_ERR(imx585->regmap))
