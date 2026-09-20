@@ -380,7 +380,10 @@ struct imx585_mode {
 	const u16 *hmax_table;
 	u16 min_hmax;       /* computed at runtime */
 	u32 min_vmax;       /* computed at runtime (fits 20-bit) */
-	u32 min_vmax_default; /* immutable per-mode timing floor */
+	u32 min_vmax_default; /* optional VMAX floor override: 0 means derive it
+				* from the window with IMX585_CROP_VMAX() at
+				* imx585_update_hmax() time; non-zero wins over
+				* that derivation for a mode that needs more */
 
 	struct v4l2_rect crop;
 
@@ -603,6 +606,9 @@ static const struct cci_reg_sequence common_normal_mode[] = {
 #define IMX585_WIN_CROP_REGS_16BIT \
 	IMX585_WIN_CROP_REGS_COMMON, \
 	{ IMX585_REG_PIX_VWIDTH, 2180 }  /* active + 20 to compensate for OB prepend */
+
+/* SRM: VMAX must be at least PIX_VWIDTH + 70, both counted in sensor rows. */
+#define IMX585_CROP_VMAX(vwidth)	((vwidth) + 70)
 
 /* All-pixel 4K, 12-bit */
 static const struct cci_reg_sequence mode_4k_regs_12bit[] = {
@@ -846,7 +852,7 @@ static struct imx585_mode supported_modes[] = {
 		.binning = 1, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 2230,
-		.min_vmax_default = 2230,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 480, .top = 0, .width = 2880, .height = 2160 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_1x1_regs), mode_window_12bit_1x1_regs },
 	},
@@ -856,7 +862,7 @@ static struct imx585_mode supported_modes[] = {
 		.binning = 1, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 1150,
-		.min_vmax_default = 1150,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 960, .top = 540, .width = 1920, .height = 1080 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_1x1_regs), mode_window_12bit_1x1_regs },
 	},
@@ -866,7 +872,7 @@ static struct imx585_mode supported_modes[] = {
 		.binning = 1, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 790,
-		.min_vmax_default = 790,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 1280, .top = 720, .width = 1280, .height = 720 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_1x1_regs), mode_window_12bit_1x1_regs },
 	},
@@ -877,7 +883,7 @@ static struct imx585_mode supported_modes[] = {
 		.binning = 1, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 610,
-		.min_vmax_default = 610,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 1440, .top = 808, .width = 960, .height = 540 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_1x1_regs), mode_window_12bit_1x1_regs },
 	},
@@ -887,7 +893,7 @@ static struct imx585_mode supported_modes[] = {
 		.binning = 1, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 710,
-		.min_vmax_default = 710,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 1520, .top = 760, .width = 800, .height = 640 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_1x1_regs), mode_window_12bit_1x1_regs },
 	},
@@ -897,7 +903,7 @@ static struct imx585_mode supported_modes[] = {
 		.binning = 1, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 670,
-		.min_vmax_default = 670,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 1520, .top = 780, .width = 800, .height = 600 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_1x1_regs), mode_window_12bit_1x1_regs },
 	},
@@ -907,7 +913,7 @@ static struct imx585_mode supported_modes[] = {
 		.binning = 1, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 430,
-		.min_vmax_default = 430,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 1600, .top = 900, .width = 640, .height = 360 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_1x1_regs), mode_window_12bit_1x1_regs },
 	},
@@ -918,7 +924,7 @@ static struct imx585_mode supported_modes[] = {
 		.binning = 1, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 370,
-		.min_vmax_default = 370,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 1720, .top = 928, .width = 400, .height = 300 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_1x1_regs), mode_window_12bit_1x1_regs },
 	},
@@ -935,7 +941,7 @@ static struct imx585_mode supported_modes[] = {
 		.binning = 1, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 1150,
-		.min_vmax_default = 1150,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 1200, .top = 540, .width = 1440, .height = 1080 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_1x1_regs), mode_window_12bit_1x1_regs },
 	},
@@ -945,7 +951,7 @@ static struct imx585_mode supported_modes[] = {
 		.binning = 2, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 2230,
-		.min_vmax_default = 2230,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 480, .top = 0, .width = 2880, .height = 2160 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
 	},
@@ -956,7 +962,7 @@ static struct imx585_mode supported_modes[] = {
 		.binning = 2, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 790,
-		.min_vmax_default = 790,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 640, .top = 360, .width = 2560, .height = 1440 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
 	},
@@ -966,7 +972,7 @@ static struct imx585_mode supported_modes[] = {
 		.binning = 2, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 610,
-		.min_vmax_default = 610,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 960, .top = 540, .width = 1920, .height = 1080 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
 	},
@@ -976,7 +982,7 @@ static struct imx585_mode supported_modes[] = {
 		.binning = 2, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 710,
-		.min_vmax_default = 710,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 1120, .top = 440, .width = 1600, .height = 1280 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
 	},
@@ -986,7 +992,7 @@ static struct imx585_mode supported_modes[] = {
 		.binning = 2, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 670,
-		.min_vmax_default = 670,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 1120, .top = 480, .width = 1600, .height = 1200 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
 	},
@@ -996,7 +1002,7 @@ static struct imx585_mode supported_modes[] = {
 		.binning = 2, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 430,
-		.min_vmax_default = 430,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 1280, .top = 720, .width = 1280, .height = 720 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
 	},
@@ -1006,7 +1012,7 @@ static struct imx585_mode supported_modes[] = {
 		.binning = 2, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 370,
-		.min_vmax_default = 370,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 1520, .top = 780, .width = 800, .height = 600 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
 	},
@@ -1028,7 +1034,7 @@ static struct imx585_mode supported_modes[] = {
 		.binning = 1, .windowed = true, .raw16 = true,
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 2230,
-		.min_vmax_default = 2230,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 480, .top = 0, .width = 2880, .height = 2160 },
 		.reg_list = { ARRAY_SIZE(mode_window_16bit_1x1_regs), mode_window_16bit_1x1_regs },
 	},
@@ -1038,7 +1044,7 @@ static struct imx585_mode supported_modes[] = {
 		.binning = 1, .windowed = true, .raw16 = true,
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 1170,
-		.min_vmax_default = 1170,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 960, .top = 540, .width = 1920, .height = 1080 },
 		.reg_list = { ARRAY_SIZE(mode_window_16bit_1x1_regs), mode_window_16bit_1x1_regs },
 	},
@@ -1048,7 +1054,7 @@ static struct imx585_mode supported_modes[] = {
 		.binning = 1, .windowed = true, .raw16 = true,
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 810,
-		.min_vmax_default = 810,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 1280, .top = 720, .width = 1280, .height = 720 },
 		.reg_list = { ARRAY_SIZE(mode_window_16bit_1x1_regs), mode_window_16bit_1x1_regs },
 	},
@@ -1058,7 +1064,7 @@ static struct imx585_mode supported_modes[] = {
 		.binning = 1, .windowed = true, .raw16 = true,
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 590,
-		.min_vmax_default = 590,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 1440, .top = 808, .width = 960, .height = 520 },
 		.reg_list = { ARRAY_SIZE(mode_window_16bit_1x1_regs), mode_window_16bit_1x1_regs },
 	},
@@ -1068,7 +1074,7 @@ static struct imx585_mode supported_modes[] = {
 		.binning = 1, .windowed = true, .raw16 = true,
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 670,
-		.min_vmax_default = 670,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 1520, .top = 780, .width = 800, .height = 600 },
 		.reg_list = { ARRAY_SIZE(mode_window_16bit_1x1_regs), mode_window_16bit_1x1_regs },
 	},
@@ -1078,7 +1084,7 @@ static struct imx585_mode supported_modes[] = {
 		.binning = 1, .windowed = true, .raw16 = true,
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 450,
-		.min_vmax_default = 450,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 1600, .top = 900, .width = 640, .height = 340 },
 		.reg_list = { ARRAY_SIZE(mode_window_16bit_1x1_regs), mode_window_16bit_1x1_regs },
 	},
@@ -1088,7 +1094,7 @@ static struct imx585_mode supported_modes[] = {
 		.binning = 1, .windowed = true, .raw16 = true,
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 390,
-		.min_vmax_default = 390,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 1720, .top = 928, .width = 400, .height = 280 },
 		.reg_list = { ARRAY_SIZE(mode_window_16bit_1x1_regs), mode_window_16bit_1x1_regs },
 	},
@@ -1109,7 +1115,7 @@ static struct imx585_mode supported_modes[] = {
 		.binning = 2, .windowed = true, .raw16 = true,
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 2250,
-		.min_vmax_default = 2250,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 480, .top = 0, .width = 2880, .height = 2160 },
 		.reg_list = { ARRAY_SIZE(mode_window_16bit_2x2_regs), mode_window_16bit_2x2_regs },
 	},
@@ -1141,7 +1147,7 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.binning = 2, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_10bit,
 		.min_hmax = 366, .min_vmax = 1150,
-		.min_vmax_default = 1150,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 480, .top = 0, .width = 2880, .height = 2160 },
 		.reg_list = { ARRAY_SIZE(mode_window_10bit_2x2_regs), mode_window_10bit_2x2_regs },
 	},
@@ -1151,7 +1157,7 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.binning = 2, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_10bit,
 		.min_hmax = 366, .min_vmax = 790,
-		.min_vmax_default = 790,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 640, .top = 360, .width = 2560, .height = 1440 },
 		.reg_list = { ARRAY_SIZE(mode_window_10bit_2x2_regs), mode_window_10bit_2x2_regs },
 	},
@@ -1161,7 +1167,7 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.binning = 2, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_10bit,
 		.min_hmax = 366, .min_vmax = 610,
-		.min_vmax_default = 610,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 960, .top = 540, .width = 1920, .height = 1080 },
 		.reg_list = { ARRAY_SIZE(mode_window_10bit_2x2_regs), mode_window_10bit_2x2_regs },
 	},
@@ -1171,7 +1177,7 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.binning = 2, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_10bit,
 		.min_hmax = 366, .min_vmax = 710,
-		.min_vmax_default = 710,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 1120, .top = 440, .width = 1600, .height = 1280 },
 		.reg_list = { ARRAY_SIZE(mode_window_10bit_2x2_regs), mode_window_10bit_2x2_regs },
 	},
@@ -1181,7 +1187,7 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.binning = 2, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_10bit,
 		.min_hmax = 366, .min_vmax = 670,
-		.min_vmax_default = 670,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 1120, .top = 480, .width = 1600, .height = 1200 },
 		.reg_list = { ARRAY_SIZE(mode_window_10bit_2x2_regs), mode_window_10bit_2x2_regs },
 	},
@@ -1191,7 +1197,7 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.binning = 2, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_10bit,
 		.min_hmax = 366, .min_vmax = 430,
-		.min_vmax_default = 430,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 1280, .top = 720, .width = 1280, .height = 720 },
 		.reg_list = { ARRAY_SIZE(mode_window_10bit_2x2_regs), mode_window_10bit_2x2_regs },
 	},
@@ -1201,7 +1207,7 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.binning = 2, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_10bit,
 		.min_hmax = 366, .min_vmax = 370,
-		.min_vmax_default = 370,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 1520, .top = 780, .width = 800, .height = 600 },
 		.reg_list = { ARRAY_SIZE(mode_window_10bit_2x2_regs), mode_window_10bit_2x2_regs },
 	},
@@ -1211,7 +1217,7 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.binning = 1, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_10bit,
 		.min_hmax = 366, .min_vmax = 2230,
-		.min_vmax_default = 2230,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 480, .top = 0, .width = 2880, .height = 2160 },
 		.reg_list = { ARRAY_SIZE(mode_window_10bit_1x1_regs), mode_window_10bit_1x1_regs },
 	},
@@ -1221,7 +1227,7 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.binning = 1, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_10bit,
 		.min_hmax = 366, .min_vmax = 1150,
-		.min_vmax_default = 1150,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 960, .top = 540, .width = 1920, .height = 1080 },
 		.reg_list = { ARRAY_SIZE(mode_window_10bit_1x1_regs), mode_window_10bit_1x1_regs },
 	},
@@ -1231,7 +1237,7 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.binning = 1, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_10bit,
 		.min_hmax = 366, .min_vmax = 790,
-		.min_vmax_default = 790,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 1280, .top = 720, .width = 1280, .height = 720 },
 		.reg_list = { ARRAY_SIZE(mode_window_10bit_1x1_regs), mode_window_10bit_1x1_regs },
 	},
@@ -1241,7 +1247,7 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.binning = 1, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_10bit,
 		.min_hmax = 366, .min_vmax = 670,
-		.min_vmax_default = 670,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 1520, .top = 780, .width = 800, .height = 600 },
 		.reg_list = { ARRAY_SIZE(mode_window_10bit_1x1_regs), mode_window_10bit_1x1_regs },
 	},
@@ -1251,7 +1257,7 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.binning = 1, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_10bit,
 		.min_hmax = 366, .min_vmax = 710,
-		.min_vmax_default = 710,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 1520, .top = 760, .width = 800, .height = 640 },
 		.reg_list = { ARRAY_SIZE(mode_window_10bit_1x1_regs), mode_window_10bit_1x1_regs },
 	},
@@ -1261,7 +1267,7 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.binning = 1, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_10bit,
 		.min_hmax = 366, .min_vmax = 610,
-		.min_vmax_default = 610,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 1440, .top = 808, .width = 960, .height = 540 },
 		.reg_list = { ARRAY_SIZE(mode_window_10bit_1x1_regs), mode_window_10bit_1x1_regs },
 	},
@@ -1271,7 +1277,7 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.binning = 1, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_10bit,
 		.min_hmax = 366, .min_vmax = 430,
-		.min_vmax_default = 430,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 1600, .top = 900, .width = 640, .height = 360 },
 		.reg_list = { ARRAY_SIZE(mode_window_10bit_1x1_regs), mode_window_10bit_1x1_regs },
 	},
@@ -1281,7 +1287,7 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.binning = 1, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_10bit,
 		.min_hmax = 366, .min_vmax = 370,
-		.min_vmax_default = 370,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 1720, .top = 928, .width = 400, .height = 300 },
 		.reg_list = { ARRAY_SIZE(mode_window_10bit_1x1_regs), mode_window_10bit_1x1_regs },
 	},
@@ -1809,9 +1815,26 @@ static void imx585_update_hmax(struct imx585 *imx585)
 	for (i = 0; i < ARRAY_SIZE(supported_modes); ++i) {
 		u32 h = supported_modes[i].hmax_table[imx585->link_freq_idx] *
 			lane_scale / supported_modes[i].hmax_div;
-		u32 v = supported_modes[i].windowed ?
-			supported_modes[i].min_vmax_default * hdr_scale :
-			IMX585_VMAX_DEFAULT * hdr_scale;
+		u32 v;
+
+		if (supported_modes[i].windowed) {
+			/*
+			 * The floor is derived from the window the driver will
+			 * actually program (sensor rows), not hand-written per
+			 * entry. min_vmax_default is an optional override: when
+			 * non-zero it wins, so an entry that needs a higher
+			 * floor than the rule can still say so in one place.
+			 */
+			u32 vwidth = supported_modes[i].crop.height +
+				(supported_modes[i].raw16 ?
+					IMX585_PIXEL_ARRAY_TOP_4K : 0);
+
+			v = (supported_modes[i].min_vmax_default ?
+				supported_modes[i].min_vmax_default :
+				IMX585_CROP_VMAX(vwidth)) * hdr_scale;
+		} else {
+			v = IMX585_VMAX_DEFAULT * hdr_scale;
+		}
 
 		/*
 		 * Clear HDR always does the dual HG+LG read, so the line readout
@@ -1835,9 +1858,20 @@ static void imx585_update_hmax(struct imx585 *imx585)
 	for (i = 0; i < ARRAY_SIZE(supported_10bit_modes); ++i) {
 		u32 h = supported_10bit_modes[i].hmax_table[imx585->link_freq_idx] *
 			lane_scale / supported_10bit_modes[i].hmax_div;
-		u32 v = supported_10bit_modes[i].windowed ?
-			supported_10bit_modes[i].min_vmax_default * hdr_scale :
-			IMX585_VMAX_DEFAULT * hdr_scale;
+		u32 v;
+
+		if (supported_10bit_modes[i].windowed) {
+			/* See the matching comment in the 12/16-bit loop above. */
+			u32 vwidth = supported_10bit_modes[i].crop.height +
+				(supported_10bit_modes[i].raw16 ?
+					IMX585_PIXEL_ARRAY_TOP_4K : 0);
+
+			v = (supported_10bit_modes[i].min_vmax_default ?
+				supported_10bit_modes[i].min_vmax_default :
+				IMX585_CROP_VMAX(vwidth)) * hdr_scale;
+		} else {
+			v = IMX585_VMAX_DEFAULT * hdr_scale;
+		}
 
 		if (!supported_10bit_modes[i].windowed &&
 		    imx585->link_freq_idx == IMX585_LINK_FREQ_1039MHZ)
