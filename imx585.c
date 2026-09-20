@@ -1544,10 +1544,12 @@ static int imx585_program_window(struct imx585 *imx585,
 		return ret;
 
 	/*
-	 * 1x1 RAW16 ClearHDR: add the 20 sensor-side OB rows.  The 2x2
-	 * RAW16 modes retain their existing register-table geometry.
+	 * RAW16 ClearHDR: add the 20 sensor-side OB rows. This allowance is
+	 * counted in sensor rows (PIX_VWIDTH is a sensor-side register), so
+	 * it applies at every binning, not just 1x1 — the 2x2 windowed crops
+	 * are binned only after readout and need the same sensor-side rows.
 	 */
-	if (mode->raw16 && mode->binning == 1)
+	if (mode->raw16)
 		sensor_height += IMX585_PIXEL_ARRAY_TOP_4K;
 
 	return cci_write(imx585->regmap, IMX585_REG_PIX_VWIDTH, sensor_height, NULL);
