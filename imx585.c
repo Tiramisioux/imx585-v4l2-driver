@@ -595,17 +595,23 @@ static const struct cci_reg_sequence common_normal_mode[] = {
  *    H10 (1) + start of vertical blanking, which the BE crop discards
  *    along with the OB.
  */
-#define IMX585_WIN_CROP_REGS_COMMON \
+/*
+ * IMX585_WIN_CROP_REGS(vst, vwidth) is the general form of the fixed
+ * _12BIT/_16BIT window used by the full-field and full-binned base tables
+ * below: PIX_HST/PIX_HWIDTH stay at the full active width (these modes are
+ * never horizontally cropped), and (vst, vwidth) select the vertical
+ * window -- 12 and 2160 for the 12-bit full active height, 12 and 2180 for
+ * the 16-bit ClearHDR variant (see the comment above). The aspect-ratio
+ * crop family (WP-585-6) needs neither instantiation: its entries set
+ * .windowed = true and let imx585_program_window() derive every register,
+ * including the tall ratios' narrower PIX_HST/PIX_HWIDTH, from mode->crop.
+ */
+#define IMX585_WIN_CROP_REGS(vst, vwidth) \
 	{ IMX585_REG_WINMODE,    IMX585_WINMODE_CROP }, \
-	{ IMX585_REG_PIX_HST,    8    }, /* skip H-margin   */ \
-	{ IMX585_REG_PIX_HWIDTH, 3840 }, /* active width    */ \
-	{ IMX585_REG_PIX_VST,    12   }  /* H6 + H7         */
-#define IMX585_WIN_CROP_REGS_12BIT \
-	IMX585_WIN_CROP_REGS_COMMON, \
-	{ IMX585_REG_PIX_VWIDTH, 2160 }  /* active height   */
-#define IMX585_WIN_CROP_REGS_16BIT \
-	IMX585_WIN_CROP_REGS_COMMON, \
-	{ IMX585_REG_PIX_VWIDTH, 2180 }  /* active + 20 to compensate for OB prepend */
+	{ IMX585_REG_PIX_HST,    8       }, /* skip H-margin   */ \
+	{ IMX585_REG_PIX_HWIDTH, 3840    }, /* active width    */ \
+	{ IMX585_REG_PIX_VST,    (vst)   }, \
+	{ IMX585_REG_PIX_VWIDTH, (vwidth) }
 
 /* SRM: VMAX must be at least PIX_VWIDTH + 70, both counted in sensor rows. */
 #define IMX585_CROP_VMAX(vwidth)	((vwidth) + 70)
@@ -616,7 +622,7 @@ static const struct cci_reg_sequence mode_4k_regs_12bit[] = {
 	{ CCI_REG8(0x3022), 0x02 }, /* ADBIT 12-bit */
 	{ IMX585_REG_MDBIT, 0x01 }, /* MDBIT 12-bit */
 	{ CCI_REG8(0x30d5), 0x04 }, /* DIG_CLP_VSTART non-binning */
-	IMX585_WIN_CROP_REGS_12BIT,
+	IMX585_WIN_CROP_REGS(12, 2160),
 };
 
 /* All-pixel 4K, 10-bit */
@@ -627,7 +633,7 @@ static const struct cci_reg_sequence mode_4k_regs_10bit[] = {
 	{ CCI_REG8(0x30d5), 0x04 }, /* DIG_CLP_VSTART non-binning */
 	{ CCI_REG8(0x3930), 0x66 }, /* DUR[15:8] (10-bit) */
 	{ CCI_REG8(0x3931), 0x00 }, /* DUR[7:0]  (10-bit) */
-	IMX585_WIN_CROP_REGS_12BIT,
+	IMX585_WIN_CROP_REGS(12, 2160),
 };
 
 /* 2x2 binned 1080p, 10-bit */
@@ -638,7 +644,7 @@ static const struct cci_reg_sequence mode_1080_regs_10bit[] = {
 	{ CCI_REG8(0x30d5), 0x02 }, /* DIG_CLP_VSTART binning */
 	{ CCI_REG8(0x3930), 0x66 },
 	{ CCI_REG8(0x3931), 0x00 },
-	IMX585_WIN_CROP_REGS_12BIT,
+	IMX585_WIN_CROP_REGS(12, 2160),
 };
 
 /* 2x2 binned 1080p, 12-bit */
@@ -647,7 +653,7 @@ static const struct cci_reg_sequence mode_1080_regs_12bit[] = {
 	{ CCI_REG8(0x3022), 0x02 }, /* ADBIT 12-bit */
 	{ IMX585_REG_MDBIT, 0x01 }, /* MDBIT 12-bit */
 	{ CCI_REG8(0x30d5), 0x02 }, /* DIG_CLP_VSTART binning */
-	IMX585_WIN_CROP_REGS_12BIT,
+	IMX585_WIN_CROP_REGS(12, 2160),
 };
 
 /* Experimental sensor-windowed mode base tables. */
@@ -716,12 +722,12 @@ static const struct cci_reg_sequence mode_1080_regs_16bit[] = {
 	{ CCI_REG8(0x3022), 0x02 }, /* ADBIT 12-bit */
 	{ IMX585_REG_MDBIT, 0x01 }, /* MDBIT 12-bit (overridden to 0x03 at runtime) */
 	{ CCI_REG8(0x30d5), 0x02 }, /* DIG_CLP_VSTART binning */
-	IMX585_WIN_CROP_REGS_16BIT,
+	IMX585_WIN_CROP_REGS(12, 2180),
 };
 
 /*
  * All-pixel 4K, 16-bit ClearHDR. Identical to the 12-bit table except
- * PIX_VWIDTH is bumped to 2180 — see comment on IMX585_WIN_CROP_REGS_16BIT
+ * PIX_VWIDTH is bumped to 2180 — see comment on IMX585_WIN_CROP_REGS()
  * for the rationale (compensates for the 20 OB rows the sensor prepends
  * in 16-bit RAW16 output, so pisp.cpp's centered crop lands at offset 20
  * and skips them cleanly). MDBIT is overridden to 0x03 (RAW16) at runtime
@@ -732,7 +738,7 @@ static const struct cci_reg_sequence mode_4k_regs_16bit[] = {
 	{ CCI_REG8(0x3022), 0x02 }, /* ADBIT 12-bit */
 	{ IMX585_REG_MDBIT, 0x01 }, /* MDBIT 12-bit (overridden to 0x03 at runtime) */
 	{ CCI_REG8(0x30d5), 0x04 }, /* DIG_CLP_VSTART non-binning */
-	IMX585_WIN_CROP_REGS_16BIT,
+	IMX585_WIN_CROP_REGS(12, 2180),
 };
 
 /* --------------------------------------------------------------------------
@@ -2717,7 +2723,7 @@ static int imx585_get_selection(struct v4l2_subdev *sd,
 	case V4L2_SEL_TGT_CROP_DEFAULT:
 		/*
 		 * Active recording area = buffer dimensions, since the sensor
-		 * is configured (via WINMODE crop, see IMX585_WIN_CROP_REGS_*)
+		 * is configured (via WINMODE crop, see IMX585_WIN_CROP_REGS())
 		 * to skip OB rows/cols at readout. Buffer holds active pixels
 		 * only.
 		 */
