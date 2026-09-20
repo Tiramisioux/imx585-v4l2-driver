@@ -759,13 +759,21 @@ static const struct cci_reg_sequence mode_4k_regs_16bit[] = {
  */
 
 /*
- * Mode array layout:
- *   12-bit modes: 1080p, 4K, 1x1 crops (2880x2160 down to 400x300),
- *       then the 1x1 ClearHDR 1440x1080 crop and 2x2 crops.
- *   [6] 4K all-pixel 16-bit ClearHDR.
- *   [7..9] 1x1 sensor-windowed 16-bit ClearHDR crops.
- *   [10] 1080p 2x2 binned 16-bit ClearHDR.
- *   [11] 1440x1080 2x2 sensor-windowed 16-bit ClearHDR crop.
+ * Mode array layout (WP-585-5: one entry per (table, advertised size) --
+ * see D1 in INVESTIGATION.md):
+ *   12-bit modes: 1080p 2x2 binned full field, 4K all-pixel, then 1x1
+ *       sensor-windowed crops (2880x2160 down to 400x300), then the 1x1
+ *       ClearHDR-12 1440x1080 crop. There is no 2x2-windowed crop family
+ *       left in the 12-bit table: the 1440x1080 2x2 window and every
+ *       smaller 2x2 window duplicated a 1x1 entry at the same advertised
+ *       size and lost to it under v4l2_find_nearest_size(), and the
+ *       1440x1080 2x2 window is additionally unvalidated on hardware (see
+ *       the comment on the HDR-12 entry below) -- both are dropped rather
+ *       than kept unreachable.
+ *   4K all-pixel 16-bit ClearHDR, then 1x1 sensor-windowed 16-bit ClearHDR
+ *       crops (2880x2160 down to 400x300), then the 1080p 2x2 binned
+ *       16-bit ClearHDR full field, then the 1440x1080 2x2 sensor-windowed
+ *       16-bit ClearHDR crop.
  *
  * RAW16 prepends 20 OB rows for 1x1 and 10 OB rows after 2x2 binning.
  * The windowed RAW16 modes therefore add 20 sensor rows to PIX_VWIDTH,
@@ -778,7 +786,6 @@ enum imx585_mode_id {
 	IMX585_MODE_1080P_12BIT,
 	IMX585_MODE_4K_12BIT,
 	IMX585_MODE_CROP_2880X2160,
-	IMX585_MODE_CROP_1920X1080,
 	IMX585_MODE_CROP_1280X720,
 	IMX585_MODE_CROP_960X540,
 	IMX585_MODE_CROP_800X640,
@@ -786,16 +793,8 @@ enum imx585_mode_id {
 	IMX585_MODE_CROP_640X360,
 	IMX585_MODE_CROP_400X300,
 	IMX585_MODE_CROP_1440X1080_HDR12,
-	IMX585_MODE_CROP_BIN_1440X1080,
-	IMX585_MODE_CROP_BIN_1280X720,
-	IMX585_MODE_CROP_BIN_960X540,
-	IMX585_MODE_CROP_BIN_800X640,
-	IMX585_MODE_CROP_BIN_800X600,
-	IMX585_MODE_CROP_BIN_640X360,
-	IMX585_MODE_CROP_BIN_400X300,
 	IMX585_MODE_4K_16BIT_HDR,
 	IMX585_MODE_CROP_16_2880X2160,
-	IMX585_MODE_CROP_16_1920X1080,
 	IMX585_MODE_CROP_16_1280X720,
 	IMX585_MODE_CROP_16_960X540,
 	IMX585_MODE_CROP_16_800X600,
@@ -854,16 +853,6 @@ static struct imx585_mode supported_modes[] = {
 		.min_hmax = 550, .min_vmax = 2230,
 		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 480, .top = 0, .width = 2880, .height = 2160 },
-		.reg_list = { ARRAY_SIZE(mode_window_12bit_1x1_regs), mode_window_12bit_1x1_regs },
-	},
-	{
-		/* Experimental centered 1920x1080 crop, 1x1. */
-		.width = 1920, .height = 1080, .hmax_div = 1,
-		.binning = 1, .windowed = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 1150,
-		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
-		.crop = { .left = 960, .top = 540, .width = 1920, .height = 1080 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_1x1_regs), mode_window_12bit_1x1_regs },
 	},
 	{
@@ -931,11 +920,16 @@ static struct imx585_mode supported_modes[] = {
 	{
 		/* ClearHDR 12-bit centered 1440x1080 crop, 1x1.
 		 *
-		 * Keep the HDR-12 crop on the proven all-pixel readout path. The
-		 * sensor's native 2x2 binned ClearHDR-12 path is usable for the
-		 * full 1920x1080 mode, but the experimental sensor-windowed 2x2
-		 * variants produced invalid colour data on hardware. Do not expose
-		 * those as HDR modes until their register sequence is validated.
+		 * Keep the HDR-12 crop on the proven all-pixel readout path.
+		 * WP-585-5 (DEC-1 exception): the sensor's native 2x2 binned
+		 * 1920x1080 readout is available in both SDR and ClearHDR-12
+		 * (see the get_mode_table() ClearHDR-12 case), but the
+		 * experimental sensor-windowed 2x2 variant of THIS size
+		 * produced invalid colour data on hardware and has been
+		 * dropped from the table entirely, not merely hidden from
+		 * ClearHDR -- it duplicated this entry's advertised size and
+		 * was unreachable regardless. Revisit once a Pi gate proves
+		 * the 2x2 window at 1440x1080.
 		 */
 		.width = 1440, .height = 1080, .hmax_div = 1,
 		.binning = 1, .windowed = true,
@@ -944,77 +938,6 @@ static struct imx585_mode supported_modes[] = {
 		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 1200, .top = 540, .width = 1440, .height = 1080 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_1x1_regs), mode_window_12bit_1x1_regs },
-	},
-	{
-		/* Experimental centered 1440x1080 crop after 2x2 binning. */
-		.width = 1440, .height = 1080, .hmax_div = 1,
-		.binning = 2, .windowed = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 2230,
-		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
-		.crop = { .left = 480, .top = 0, .width = 2880, .height = 2160 },
-		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
-	},
-
-	{
-		/* Centered 1280x720 crop in the 2x2 RAW12 output domain. */
-		.width = 1280, .height = 720, .hmax_div = 1,
-		.binning = 2, .windowed = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 790,
-		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
-		.crop = { .left = 640, .top = 360, .width = 2560, .height = 1440 },
-		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
-	},
-	{
-		/* Centered 960x540 crop in the 2x2 RAW12 output domain. */
-		.width = 960, .height = 540, .hmax_div = 1,
-		.binning = 2, .windowed = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 610,
-		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
-		.crop = { .left = 960, .top = 540, .width = 1920, .height = 1080 },
-		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
-	},
-	{
-		/* Centered 800x640 crop in the 2x2 RAW12 output domain. */
-		.width = 800, .height = 640, .hmax_div = 1,
-		.binning = 2, .windowed = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 710,
-		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
-		.crop = { .left = 1120, .top = 440, .width = 1600, .height = 1280 },
-		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
-	},
-	{
-		/* Centered 800x600 crop in the 2x2 RAW12 output domain. */
-		.width = 800, .height = 600, .hmax_div = 1,
-		.binning = 2, .windowed = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 670,
-		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
-		.crop = { .left = 1120, .top = 480, .width = 1600, .height = 1200 },
-		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
-	},
-	{
-		/* Centered 640x360 crop in the 2x2 RAW12 output domain. */
-		.width = 640, .height = 360, .hmax_div = 1,
-		.binning = 2, .windowed = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 430,
-		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
-		.crop = { .left = 1280, .top = 720, .width = 1280, .height = 720 },
-		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
-	},
-	{
-		/* Centered 400x300 crop in the 2x2 RAW12 output domain. */
-		.width = 400, .height = 300, .hmax_div = 1,
-		.binning = 2, .windowed = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 370,
-		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
-		.crop = { .left = 1520, .top = 780, .width = 800, .height = 600 },
-		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
 	},
 
 	{
@@ -1036,16 +959,6 @@ static struct imx585_mode supported_modes[] = {
 		.min_hmax = 550, .min_vmax = 2230,
 		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 480, .top = 0, .width = 2880, .height = 2160 },
-		.reg_list = { ARRAY_SIZE(mode_window_16bit_1x1_regs), mode_window_16bit_1x1_regs },
-	},
-	{
-		/* Experimental 1920x1080 1x1 RAW16 ClearHDR crop. */
-		.width = 1920, .height = 1120, .hmax_div = 1,
-		.binning = 1, .windowed = true, .raw16 = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 1170,
-		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
-		.crop = { .left = 960, .top = 540, .width = 1920, .height = 1080 },
 		.reg_list = { ARRAY_SIZE(mode_window_16bit_1x1_regs), mode_window_16bit_1x1_regs },
 	},
 	{
@@ -1142,73 +1055,22 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.reg_list = { ARRAY_SIZE(mode_1080_regs_10bit), mode_1080_regs_10bit },
 	},
 	{
-		/* Centered 1440x1080 crop in the 2x2 output domain. */
+		/*
+		 * Centered 1440x1080 crop in the 2x2 output domain. WP-585-5:
+		 * this is the only 1440x1080/1440x1100 entry in the 10-bit
+		 * table, so it stays on the 2x2 window; unlike the 12-bit
+		 * table's 1440x1080 there is no proven-hardware 1x1 sibling
+		 * to prefer instead. Everything below 1440 in this table
+		 * moved to the 1x1 window (further down) to keep one entry
+		 * per (table, advertised size); the 2x2 variants of those
+		 * smaller sizes are dropped rather than kept unreachable.
+		 */
 		.width = 1440, .height = 1080, .hmax_div = 1,
 		.binning = 2, .windowed = true,
 		.hmax_table = HMAX_table_4lane_4K_10bit,
 		.min_hmax = 366, .min_vmax = 1150,
 		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 480, .top = 0, .width = 2880, .height = 2160 },
-		.reg_list = { ARRAY_SIZE(mode_window_10bit_2x2_regs), mode_window_10bit_2x2_regs },
-	},
-	{
-		/* Centered 1280x720 crop in the 2x2 output domain. */
-		.width = 1280, .height = 720, .hmax_div = 1,
-		.binning = 2, .windowed = true,
-		.hmax_table = HMAX_table_4lane_4K_10bit,
-		.min_hmax = 366, .min_vmax = 790,
-		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
-		.crop = { .left = 640, .top = 360, .width = 2560, .height = 1440 },
-		.reg_list = { ARRAY_SIZE(mode_window_10bit_2x2_regs), mode_window_10bit_2x2_regs },
-	},
-	{
-		/* Centered 960x540 crop in the 2x2 output domain. */
-		.width = 960, .height = 540, .hmax_div = 1,
-		.binning = 2, .windowed = true,
-		.hmax_table = HMAX_table_4lane_4K_10bit,
-		.min_hmax = 366, .min_vmax = 610,
-		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
-		.crop = { .left = 960, .top = 540, .width = 1920, .height = 1080 },
-		.reg_list = { ARRAY_SIZE(mode_window_10bit_2x2_regs), mode_window_10bit_2x2_regs },
-	},
-	{
-		/* Centered 800x640 crop in the 2x2 output domain. */
-		.width = 800, .height = 640, .hmax_div = 1,
-		.binning = 2, .windowed = true,
-		.hmax_table = HMAX_table_4lane_4K_10bit,
-		.min_hmax = 366, .min_vmax = 710,
-		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
-		.crop = { .left = 1120, .top = 440, .width = 1600, .height = 1280 },
-		.reg_list = { ARRAY_SIZE(mode_window_10bit_2x2_regs), mode_window_10bit_2x2_regs },
-	},
-	{
-		/* Centered 800x600 crop in the 2x2 output domain. */
-		.width = 800, .height = 600, .hmax_div = 1,
-		.binning = 2, .windowed = true,
-		.hmax_table = HMAX_table_4lane_4K_10bit,
-		.min_hmax = 366, .min_vmax = 670,
-		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
-		.crop = { .left = 1120, .top = 480, .width = 1600, .height = 1200 },
-		.reg_list = { ARRAY_SIZE(mode_window_10bit_2x2_regs), mode_window_10bit_2x2_regs },
-	},
-	{
-		/* Centered 640x360 crop in the 2x2 output domain. */
-		.width = 640, .height = 360, .hmax_div = 1,
-		.binning = 2, .windowed = true,
-		.hmax_table = HMAX_table_4lane_4K_10bit,
-		.min_hmax = 366, .min_vmax = 430,
-		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
-		.crop = { .left = 1280, .top = 720, .width = 1280, .height = 720 },
-		.reg_list = { ARRAY_SIZE(mode_window_10bit_2x2_regs), mode_window_10bit_2x2_regs },
-	},
-	{
-		/* Centered 400x300 crop in the 2x2 output domain. */
-		.width = 400, .height = 300, .hmax_div = 1,
-		.binning = 2, .windowed = true,
-		.hmax_table = HMAX_table_4lane_4K_10bit,
-		.min_hmax = 366, .min_vmax = 370,
-		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
-		.crop = { .left = 1520, .top = 780, .width = 800, .height = 600 },
 		.reg_list = { ARRAY_SIZE(mode_window_10bit_2x2_regs), mode_window_10bit_2x2_regs },
 	},
 	{
@@ -1219,16 +1081,6 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.min_hmax = 366, .min_vmax = 2230,
 		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 480, .top = 0, .width = 2880, .height = 2160 },
-		.reg_list = { ARRAY_SIZE(mode_window_10bit_1x1_regs), mode_window_10bit_1x1_regs },
-	},
-	{
-		/* Experimental centered 1920x1080 RAW10 crop, 1x1. */
-		.width = 1920, .height = 1080, .hmax_div = 1,
-		.binning = 1, .windowed = true,
-		.hmax_table = HMAX_table_4lane_4K_10bit,
-		.min_hmax = 366, .min_vmax = 1150,
-		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
-		.crop = { .left = 960, .top = 540, .width = 1920, .height = 1080 },
 		.reg_list = { ARRAY_SIZE(mode_window_10bit_1x1_regs), mode_window_10bit_1x1_regs },
 	},
 	{
@@ -1622,13 +1474,25 @@ static inline void get_mode_table(struct imx585 *imx585, unsigned int code,
 		case MEDIA_BUS_FMT_SBGGR12_1X12:
 			if (imx585->clear_hdr) {
 				if (imx585->clearhdr_ccmp) {
-					/* HDR-12 uses only the validated 1x1 crop family.
-					 * The full 1920x1080 2x2 mode remains available, but
-					 * the experimental windowed 2x2 HDR modes are SDR-only
-					 * until their sensor register sequence is validated.
+					/*
+					 * WP-585-5/DEC-2: restore the binned full-field
+					 * 1920x1080 readout to ClearHDR-12 (this is what
+					 * cinemate-7modes offered and what the comment
+					 * above already claimed -- "colour offers binned
+					 * + 4K in Clear HDR" -- but the range used to
+					 * start one entry later, at IMX585_MODE_4K_12BIT,
+					 * which silently turned 1920x1080 into a 1x1
+					 * centre crop). The 12-bit table no longer has a
+					 * 2x2-windowed crop family at all (see D1/WP-585-5:
+					 * each of those duplicated a 1x1 entry's advertised
+					 * size and was unreachable, and the 1440x1080 2x2
+					 * window besides is unvalidated on hardware), so
+					 * this range is now identical to the SDR 12-bit
+					 * range below.
 					 */
-					*mode_list = &supported_modes[IMX585_MODE_4K_12BIT];
-					*num_modes = IMX585_MODE_CROP_BIN_1440X1080 - IMX585_MODE_4K_12BIT;
+					*mode_list = &supported_modes[IMX585_MODE_1080P_12BIT];
+					*num_modes = IMX585_MODE_4K_16BIT_HDR -
+						     IMX585_MODE_1080P_12BIT;
 				}
 			} else {
 				*mode_list = supported_modes;
