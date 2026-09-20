@@ -858,7 +858,7 @@ static struct imx585_mode supported_modes[] = {
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 610,
 		.min_vmax_default = 610,
-		.crop = { .left = 1440, .top = 810, .width = 960, .height = 540 },
+		.crop = { .left = 1440, .top = 808, .width = 960, .height = 540 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_1x1_regs), mode_window_12bit_1x1_regs },
 	},
 	{
@@ -899,7 +899,7 @@ static struct imx585_mode supported_modes[] = {
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 370,
 		.min_vmax_default = 370,
-		.crop = { .left = 1720, .top = 930, .width = 400, .height = 300 },
+		.crop = { .left = 1720, .top = 928, .width = 400, .height = 300 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_1x1_regs), mode_window_12bit_1x1_regs },
 	},
 	{
@@ -1039,7 +1039,7 @@ static struct imx585_mode supported_modes[] = {
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 590,
 		.min_vmax_default = 590,
-		.crop = { .left = 1440, .top = 810, .width = 960, .height = 540 },
+		.crop = { .left = 1440, .top = 808, .width = 960, .height = 540 },
 		.reg_list = { ARRAY_SIZE(mode_window_16bit_1x1_regs), mode_window_16bit_1x1_regs },
 	},
 	{
@@ -1069,7 +1069,7 @@ static struct imx585_mode supported_modes[] = {
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 390,
 		.min_vmax_default = 390,
-		.crop = { .left = 1720, .top = 930, .width = 400, .height = 300 },
+		.crop = { .left = 1720, .top = 928, .width = 400, .height = 300 },
 		.reg_list = { ARRAY_SIZE(mode_window_16bit_1x1_regs), mode_window_16bit_1x1_regs },
 	},
 
@@ -1242,7 +1242,7 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.hmax_table = HMAX_table_4lane_4K_10bit,
 		.min_hmax = 366, .min_vmax = 610,
 		.min_vmax_default = 610,
-		.crop = { .left = 1440, .top = 810, .width = 960, .height = 540 },
+		.crop = { .left = 1440, .top = 808, .width = 960, .height = 540 },
 		.reg_list = { ARRAY_SIZE(mode_window_10bit_1x1_regs), mode_window_10bit_1x1_regs },
 	},
 	{
@@ -1262,7 +1262,7 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.hmax_table = HMAX_table_4lane_4K_10bit,
 		.min_hmax = 366, .min_vmax = 370,
 		.min_vmax_default = 370,
-		.crop = { .left = 1720, .top = 930, .width = 400, .height = 300 },
+		.crop = { .left = 1720, .top = 928, .width = 400, .height = 300 },
 		.reg_list = { ARRAY_SIZE(mode_window_10bit_1x1_regs), mode_window_10bit_1x1_regs },
 	},
 };
