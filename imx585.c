@@ -799,6 +799,26 @@ enum imx585_mode_id {
 	IMX585_MODE_CROP_16_BIN_1440X1080,
 };
 
+/*
+ * mode->crop below is in NATIVE SENSOR-PIXEL coordinates, not output
+ * coordinates: it is what imx585_program_window() writes to the WINMODE
+ * registers, what imx585_get_selection() reports for V4L2_SEL_TGT_CROP, and
+ * what libcamera reads to derive its own binning (scaleX = analogCrop.width /
+ * outputSize.width). Invariant every entry must satisfy:
+ *
+ *   entry kind          | crop.width   | crop.height
+ *   ---------------------|--------------|------------------
+ *   non-RAW16, binning b | width * b    | height * b
+ *   RAW16, 1x1            | width        | height - 40
+ *   RAW16, 2x2            | width * 2    | (height - 20) * 2
+ *
+ * crop.left/crop.top are the sensor-domain origin of the window: 0 for a
+ * full-field (non-windowed) entry, which always reports the full active
+ * area (0, 0, IMX585_PIXEL_ARRAY_WIDTH, IMX585_PIXEL_ARRAY_HEIGHT) regardless
+ * of raw16 or binning, and the centred sensor-domain offset otherwise. Every
+ * entry must satisfy crop.left + crop.width <= IMX585_PIXEL_ARRAY_WIDTH and
+ * crop.top + crop.height <= IMX585_PIXEL_ARRAY_HEIGHT.
+ */
 static struct imx585_mode supported_modes[] = {
 	{
 		/* Existing 1080p60 2x2 binning, 12-bit. */
@@ -807,7 +827,7 @@ static struct imx585_mode supported_modes[] = {
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 366, .min_vmax = IMX585_VMAX_DEFAULT,
 		.min_vmax_default = IMX585_VMAX_DEFAULT,
-		.crop = { .left = 0, .top = 0, .width = 1920, .height = 1080 },
+		.crop = { .left = 0, .top = 0, .width = 3840, .height = 2160 },
 		.reg_list = { ARRAY_SIZE(mode_1080_regs_12bit), mode_1080_regs_12bit },
 	},
 	{
@@ -926,7 +946,7 @@ static struct imx585_mode supported_modes[] = {
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 2230,
 		.min_vmax_default = 2230,
-		.crop = { .left = 240, .top = 0, .width = 1440, .height = 1080 },
+		.crop = { .left = 480, .top = 0, .width = 2880, .height = 2160 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
 	},
 
@@ -937,7 +957,7 @@ static struct imx585_mode supported_modes[] = {
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 790,
 		.min_vmax_default = 790,
-		.crop = { .left = 320, .top = 180, .width = 1280, .height = 720 },
+		.crop = { .left = 640, .top = 360, .width = 2560, .height = 1440 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
 	},
 	{
@@ -947,7 +967,7 @@ static struct imx585_mode supported_modes[] = {
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 610,
 		.min_vmax_default = 610,
-		.crop = { .left = 480, .top = 270, .width = 960, .height = 540 },
+		.crop = { .left = 960, .top = 540, .width = 1920, .height = 1080 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
 	},
 	{
@@ -957,7 +977,7 @@ static struct imx585_mode supported_modes[] = {
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 710,
 		.min_vmax_default = 710,
-		.crop = { .left = 560, .top = 220, .width = 800, .height = 640 },
+		.crop = { .left = 1120, .top = 440, .width = 1600, .height = 1280 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
 	},
 	{
@@ -967,7 +987,7 @@ static struct imx585_mode supported_modes[] = {
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 670,
 		.min_vmax_default = 670,
-		.crop = { .left = 560, .top = 240, .width = 800, .height = 600 },
+		.crop = { .left = 1120, .top = 480, .width = 1600, .height = 1200 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
 	},
 	{
@@ -977,7 +997,7 @@ static struct imx585_mode supported_modes[] = {
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 430,
 		.min_vmax_default = 430,
-		.crop = { .left = 640, .top = 360, .width = 640, .height = 360 },
+		.crop = { .left = 1280, .top = 720, .width = 1280, .height = 720 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
 	},
 	{
@@ -987,7 +1007,7 @@ static struct imx585_mode supported_modes[] = {
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 370,
 		.min_vmax_default = 370,
-		.crop = { .left = 760, .top = 390, .width = 400, .height = 300 },
+		.crop = { .left = 1520, .top = 780, .width = 800, .height = 600 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
 	},
 
@@ -1039,7 +1059,7 @@ static struct imx585_mode supported_modes[] = {
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 590,
 		.min_vmax_default = 590,
-		.crop = { .left = 1440, .top = 808, .width = 960, .height = 540 },
+		.crop = { .left = 1440, .top = 808, .width = 960, .height = 520 },
 		.reg_list = { ARRAY_SIZE(mode_window_16bit_1x1_regs), mode_window_16bit_1x1_regs },
 	},
 	{
@@ -1059,7 +1079,7 @@ static struct imx585_mode supported_modes[] = {
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 450,
 		.min_vmax_default = 450,
-		.crop = { .left = 1600, .top = 900, .width = 640, .height = 360 },
+		.crop = { .left = 1600, .top = 900, .width = 640, .height = 340 },
 		.reg_list = { ARRAY_SIZE(mode_window_16bit_1x1_regs), mode_window_16bit_1x1_regs },
 	},
 	{
@@ -1069,7 +1089,7 @@ static struct imx585_mode supported_modes[] = {
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 390,
 		.min_vmax_default = 390,
-		.crop = { .left = 1720, .top = 928, .width = 400, .height = 300 },
+		.crop = { .left = 1720, .top = 928, .width = 400, .height = 280 },
 		.reg_list = { ARRAY_SIZE(mode_window_16bit_1x1_regs), mode_window_16bit_1x1_regs },
 	},
 
@@ -1080,7 +1100,7 @@ static struct imx585_mode supported_modes[] = {
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = IMX585_VMAX_DEFAULT,
 		.min_vmax_default = IMX585_VMAX_DEFAULT,
-		.crop = { .left = 0, .top = 0, .width = 1920, .height = 1080 },
+		.crop = { .left = 0, .top = 0, .width = 3840, .height = 2160 },
 		.reg_list = { ARRAY_SIZE(mode_1080_regs_16bit), mode_1080_regs_16bit },
 	},
 	{
@@ -1090,7 +1110,7 @@ static struct imx585_mode supported_modes[] = {
 		.hmax_table = HMAX_table_4lane_4K_12bit,
 		.min_hmax = 550, .min_vmax = 2250,
 		.min_vmax_default = 2250,
-		.crop = { .left = 240, .top = 0, .width = 1440, .height = 1080 },
+		.crop = { .left = 480, .top = 0, .width = 2880, .height = 2160 },
 		.reg_list = { ARRAY_SIZE(mode_window_16bit_2x2_regs), mode_window_16bit_2x2_regs },
 	},
 };
@@ -1112,7 +1132,7 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.hmax_table = HMAX_table_4lane_4K_10bit,
 		.min_hmax = 366, .min_vmax = IMX585_VMAX_DEFAULT,
 		.min_vmax_default = IMX585_VMAX_DEFAULT,
-		.crop = { .left = 0, .top = 0, .width = 1920, .height = 1080 },
+		.crop = { .left = 0, .top = 0, .width = 3840, .height = 2160 },
 		.reg_list = { ARRAY_SIZE(mode_1080_regs_10bit), mode_1080_regs_10bit },
 	},
 	{
@@ -1122,7 +1142,7 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.hmax_table = HMAX_table_4lane_4K_10bit,
 		.min_hmax = 366, .min_vmax = 1150,
 		.min_vmax_default = 1150,
-		.crop = { .left = 240, .top = 0, .width = 1440, .height = 1080 },
+		.crop = { .left = 480, .top = 0, .width = 2880, .height = 2160 },
 		.reg_list = { ARRAY_SIZE(mode_window_10bit_2x2_regs), mode_window_10bit_2x2_regs },
 	},
 	{
@@ -1132,7 +1152,7 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.hmax_table = HMAX_table_4lane_4K_10bit,
 		.min_hmax = 366, .min_vmax = 790,
 		.min_vmax_default = 790,
-		.crop = { .left = 320, .top = 180, .width = 1280, .height = 720 },
+		.crop = { .left = 640, .top = 360, .width = 2560, .height = 1440 },
 		.reg_list = { ARRAY_SIZE(mode_window_10bit_2x2_regs), mode_window_10bit_2x2_regs },
 	},
 	{
@@ -1142,7 +1162,7 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.hmax_table = HMAX_table_4lane_4K_10bit,
 		.min_hmax = 366, .min_vmax = 610,
 		.min_vmax_default = 610,
-		.crop = { .left = 480, .top = 270, .width = 960, .height = 540 },
+		.crop = { .left = 960, .top = 540, .width = 1920, .height = 1080 },
 		.reg_list = { ARRAY_SIZE(mode_window_10bit_2x2_regs), mode_window_10bit_2x2_regs },
 	},
 	{
@@ -1152,7 +1172,7 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.hmax_table = HMAX_table_4lane_4K_10bit,
 		.min_hmax = 366, .min_vmax = 710,
 		.min_vmax_default = 710,
-		.crop = { .left = 560, .top = 220, .width = 800, .height = 640 },
+		.crop = { .left = 1120, .top = 440, .width = 1600, .height = 1280 },
 		.reg_list = { ARRAY_SIZE(mode_window_10bit_2x2_regs), mode_window_10bit_2x2_regs },
 	},
 	{
@@ -1162,7 +1182,7 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.hmax_table = HMAX_table_4lane_4K_10bit,
 		.min_hmax = 366, .min_vmax = 670,
 		.min_vmax_default = 670,
-		.crop = { .left = 560, .top = 240, .width = 800, .height = 600 },
+		.crop = { .left = 1120, .top = 480, .width = 1600, .height = 1200 },
 		.reg_list = { ARRAY_SIZE(mode_window_10bit_2x2_regs), mode_window_10bit_2x2_regs },
 	},
 	{
@@ -1172,7 +1192,7 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.hmax_table = HMAX_table_4lane_4K_10bit,
 		.min_hmax = 366, .min_vmax = 430,
 		.min_vmax_default = 430,
-		.crop = { .left = 640, .top = 360, .width = 640, .height = 360 },
+		.crop = { .left = 1280, .top = 720, .width = 1280, .height = 720 },
 		.reg_list = { ARRAY_SIZE(mode_window_10bit_2x2_regs), mode_window_10bit_2x2_regs },
 	},
 	{
@@ -1182,7 +1202,7 @@ static struct imx585_mode supported_10bit_modes[] = {
 		.hmax_table = HMAX_table_4lane_4K_10bit,
 		.min_hmax = 366, .min_vmax = 370,
 		.min_vmax_default = 370,
-		.crop = { .left = 760, .top = 390, .width = 400, .height = 300 },
+		.crop = { .left = 1520, .top = 780, .width = 800, .height = 600 },
 		.reg_list = { ARRAY_SIZE(mode_window_10bit_2x2_regs), mode_window_10bit_2x2_regs },
 	},
 	{
@@ -1476,8 +1496,8 @@ static int imx585_program_window(struct imx585 *imx585,
 	if (!mode->windowed)
 		return 0;
 
-	sensor_width = mode->crop.width * mode->binning;
-	sensor_height = mode->crop.height * mode->binning;
+	sensor_width = mode->crop.width;
+	sensor_height = mode->crop.height;
 	/*
 	 * RAW16 ClearHDR prepends 20 optical-black rows in the CSI output.
 	 * PIX_VWIDTH is the sensor-side readout window, so for 1x1 RAW16
@@ -1490,11 +1510,11 @@ static int imx585_program_window(struct imx585 *imx585,
 	 * the extra 20 rows are the sensor's RAW16 readout overhead, not
 	 * part of the requested active crop.
 	 */
-	/* crop.{left,top,width,height} are expressed in the mode's
-	 * output domain. Convert them back to sensor-pixel coordinates before
-	 * programming WINMODE, including for the native 2x2-binned RAW10 modes. */
-	hst = IMX585_PIXEL_ARRAY_LEFT + mode->crop.left * mode->binning;
-	vst = 12 + mode->crop.top * mode->binning;
+	/* crop.{left,top,width,height} are already expressed in native
+	 * sensor-pixel coordinates (see the invariant above supported_modes[]),
+	 * so program WINMODE from them directly with no binning multiplication. */
+	hst = IMX585_PIXEL_ARRAY_LEFT + mode->crop.left;
+	vst = 12 + mode->crop.top;
 
 	/* Match the sensor's documented WINMODE alignment restrictions. */
 	if (sensor_width < 64 || sensor_width > IMX585_PIXEL_ARRAY_WIDTH ||
@@ -1835,10 +1855,10 @@ static void imx585_update_hmax(struct imx585 *imx585)
 static void imx585_update_mode_metadata(struct imx585 *imx585,
 					      const struct imx585_mode *mode)
 {
-	u32 left = mode->windowed ? mode->crop.left * mode->binning : 0;
-	u32 top = mode->windowed ? mode->crop.top * mode->binning : 0;
-	u32 width = mode->windowed ? mode->crop.width * mode->binning : IMX585_PIXEL_ARRAY_WIDTH;
-	u32 height = mode->windowed ? mode->crop.height * mode->binning : IMX585_PIXEL_ARRAY_HEIGHT;
+	u32 left = mode->windowed ? mode->crop.left : 0;
+	u32 top = mode->windowed ? mode->crop.top : 0;
+	u32 width = mode->windowed ? mode->crop.width : IMX585_PIXEL_ARRAY_WIDTH;
+	u32 height = mode->windowed ? mode->crop.height : IMX585_PIXEL_ARRAY_HEIGHT;
 
 	__v4l2_ctrl_s_ctrl(imx585->binning_ctrl, mode->binning);
 	__v4l2_ctrl_s_ctrl(imx585->crop_left_ctrl, left);
