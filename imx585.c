@@ -703,12 +703,12 @@ static const struct cci_reg_sequence mode_window_16bit_1x1_regs[] = {
 	{ CCI_REG8(0x30d5), 0x04 },
 };
 
-static const struct cci_reg_sequence mode_window_16bit_2x2_regs[] = {
-	{ CCI_REG8(0x301b), 0x01 },
-	{ CCI_REG8(0x3022), 0x02 },
-	{ IMX585_REG_MDBIT, 0x01 },
-	{ CCI_REG8(0x30d5), 0x02 },
-};
+/*
+ * mode_window_16bit_2x2_regs (ADDMODE binning + windowed RAW16) is
+ * deliberately absent: WP-585-8 (2026-09-21) found every windowed 2x2
+ * RAW16 crop returns the OB pedestal on hardware, so no table entry ever
+ * selects it. See the comment above IMX585_MODE_1080P_16BIT_HDR.
+ */
 
 /*
  * 2x2 binned 1080p, 16-bit ClearHDR. Identical to the 12-bit binned table
@@ -782,20 +782,32 @@ static const struct cci_reg_sequence mode_4k_regs_16bit[] = {
  *   4K all-pixel 16-bit ClearHDR (1.78:1), the family's 1x1 RAW16 crop at
  *       1.33:1 (2880x2200), then the family's other twelve 1x1 RAW16
  *       crops, then the 1080p 2x2 binned 16-bit ClearHDR full field
- *       (1.78:1), then the family's twelve 2x2 RAW16 crops, then the
- *       1.33:1 2x2 RAW16 crop (1440x1100) last.
+ *       (1.78:1) last, which is now also the last entry in the whole
+ *       table. WP-585-8 (2026-09-21): the family's 2x2-binned RAW16
+ *       crops that used to follow it here -- all twelve ratios plus the
+ *       1.33:1 1440x1100 -- are gone. Four hardware takes with
+ *       byte-level analysis showed every windowed 2x2 RAW16 mode reads
+ *       back as the OB pedestal, not an image (the sensor emits its
+ *       binned optical-black rows and then nothing), while the 10-bit
+ *       windowed 2x2 mode at the same geometry and the non-windowed
+ *       full-field 2x2 RAW16 mode both read back real images. Binned
+ *       Clear HDR is full-field only on this sensor; do not re-add a
+ *       binned crop from the aspect-ratio family into this table.
  *
  * RAW16 prepends 20 OB rows for 1x1 and 10 OB rows after 2x2 binning.
- * The windowed RAW16 modes therefore add 20 sensor rows to PIX_VWIDTH,
- * while the advertised buffer height includes the resulting OB rows too.
- * The 16-bit entries are contiguous so get_mode_table() can expose all
- * colour RAW16 modes as one range. 1:1, 1.33:1 and 1.37:1 are
- * width-limited (they keep the full sensor height), so they keep the
- * full-frame VMAX and gain no frame rate over the existing 1.78:1 modes;
- * every wider ratio narrows PIX_VWIDTH and speeds up. The ad-hoc small
- * test crops the base branch carried in these table slots (800x640,
- * 800x600, 640x360, 400x300 and similar) are removed: they are not
- * ratios anybody frames to, and the aspect-ratio family supersedes them.
+ * The windowed 1x1 RAW16 modes therefore add 20 sensor rows to
+ * PIX_VWIDTH, while the advertised buffer height includes the resulting
+ * OB rows too (no windowed 2x2 RAW16 mode exists to add the 2x2
+ * equivalent -- see WP-585-8 above). The 16-bit entries are contiguous
+ * so get_mode_table() can expose all colour RAW16 modes as one range.
+ * 1:1, 1.33:1 and 1.37:1 are width-limited (they keep the full sensor
+ * height), so they keep the full-frame VMAX and gain no frame rate over
+ * the existing 1.78:1 modes; every wider ratio narrows PIX_VWIDTH and
+ * speeds up. The ad-hoc small test crops the base branch carried in
+ * these table slots (800x640, 800x600, 640x360, 400x300 and similar)
+ * are removed: they are not ratios anybody frames to, and the
+ * aspect-ratio family (what remains of it after WP-585-8) supersedes
+ * them.
  */
 enum imx585_mode_id {
 	IMX585_MODE_1080P_12BIT,
@@ -847,21 +859,13 @@ enum imx585_mode_id {
 	IMX585_MODE_CROP_16_3840X1648,		/* 2.39:1 */
 	IMX585_MODE_CROP_16_3840X1576,		/* 2.50:1 */
 	IMX585_MODE_CROP_16_3840X1544,		/* 2.55:1 */
+	/* WP-585-8, 2026-09-21: no 2x2-binned RAW16 entries below this line.
+	 * Four hardware takes showed every windowed (sensor-cropped) 2x2
+	 * RAW16 mode returns the OB pedestal, not an image -- binned Clear
+	 * HDR only reads out correctly full-field on this sensor. Do not
+	 * re-add a binned crop from the aspect-ratio family here; see the
+	 * comment above IMX585_MODE_1080P_16BIT_HDR's table entry. */
 	IMX585_MODE_1080P_16BIT_HDR,
-	/* Aspect-ratio family, 2x2 binned, RAW16 ClearHDR. */
-	IMX585_MODE_CROP_16_BIN_1080X1100,	/* 1:1 */
-	IMX585_MODE_CROP_16_BIN_1488X1100,	/* 1.37:1 */
-	IMX585_MODE_CROP_16_BIN_1920X1056,	/* 1.85:1 */
-	IMX585_MODE_CROP_16_BIN_1920X1036,	/* 1.89:1 */
-	IMX585_MODE_CROP_16_BIN_1920X1032,	/* 1.90:1 */
-	IMX585_MODE_CROP_16_BIN_1920X980,	/* 2.00:1 */
-	IMX585_MODE_CROP_16_BIN_1920X892,	/* 2.20:1 */
-	IMX585_MODE_CROP_16_BIN_1920X884,	/* 2.22:1 */
-	IMX585_MODE_CROP_16_BIN_1920X836,	/* 2.35:1 */
-	IMX585_MODE_CROP_16_BIN_1920X824,	/* 2.39:1 */
-	IMX585_MODE_CROP_16_BIN_1920X788,	/* 2.50:1 */
-	IMX585_MODE_CROP_16_BIN_1920X772,	/* 2.55:1 */
-	IMX585_MODE_CROP_16_BIN_1440X1080,	/* 1.33:1, 2x2 */
 };
 
 /*
@@ -1333,6 +1337,23 @@ static struct imx585_mode supported_modes[] = {
 		.crop = { .left = 0, .top = 328, .width = 3840, .height = 1504 },
 		.reg_list = { ARRAY_SIZE(mode_window_16bit_1x1_regs), mode_window_16bit_1x1_regs },
 	},
+	/*
+	 * WP-585-8, 2026-09-21: this is the LAST entry in supported_modes[].
+	 * The aspect-ratio family's 2x2-binned RAW16 crops that used to
+	 * follow it (all twelve ratios plus 1.33:1's 1440x1100) are removed:
+	 * four hardware takes with byte-level analysis showed every windowed
+	 * 2x2 RAW16 mode reads back as the OB pedestal -- 98.8-99.5% of
+	 * pixels at the fixed pedestal value, a rigid few-row byte period,
+	 * row means flat after the first few rows -- while the 10-bit
+	 * windowed 2x2 mode at the same geometry and this entry (RAW16,
+	 * non-windowed, full field) both read back real images. The sensor
+	 * emits its binned optical-black rows and then produces no
+	 * recording rows for a 2x2 RAW16 window. Binned Clear HDR is
+	 * full-field only on this sensor: do not re-add a binned crop from
+	 * the aspect-ratio family here. Every RAW16 aspect ratio is still
+	 * available unbinned (the 1x1 family above), just not at the lower
+	 * resolution and higher speed 2x2 binning would give.
+	 */
 	{
 		/* Existing 1080p 2x2 binned 16-bit ClearHDR; unchanged. */
 		.width = 1920, .height = 1100, .hmax_div = 1,
@@ -1342,141 +1363,6 @@ static struct imx585_mode supported_modes[] = {
 		.min_vmax_default = IMX585_VMAX_DEFAULT,
 		.crop = { .left = 0, .top = 0, .width = 3840, .height = 2160 },
 		.reg_list = { ARRAY_SIZE(mode_1080_regs_16bit), mode_1080_regs_16bit },
-	},
-	/* Aspect-ratio family, 2x2 binned, RAW16 ClearHDR: same sensor-row
-	 * crop rectangles as the 1x1 RAW16 family above, output size halved,
-	 * buffer height bumped by the 20-row post-binning RAW16 OB
-	 * allowance. No 1.33:1 entry here: it is the entry immediately
-	 * below (kept from the base branch, hardware-proven). */
-	{
-		/* Experimental centered 1080x1100 (1:1) RAW16 ClearHDR crop, 2x2 binned. */
-		.width = 1080, .height = 1100, .hmax_div = 1,
-		.binning = 2, .windowed = true, .raw16 = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 2250,
-		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
-		.crop = { .left = 840, .top = 0, .width = 2160, .height = 2160 },
-		.reg_list = { ARRAY_SIZE(mode_window_16bit_2x2_regs), mode_window_16bit_2x2_regs },
-	},
-	{
-		/* Experimental centered 1488x1100 (1.37:1) RAW16 ClearHDR crop, 2x2 binned. */
-		.width = 1488, .height = 1100, .hmax_div = 1,
-		.binning = 2, .windowed = true, .raw16 = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 2250,
-		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
-		.crop = { .left = 432, .top = 0, .width = 2976, .height = 2160 },
-		.reg_list = { ARRAY_SIZE(mode_window_16bit_2x2_regs), mode_window_16bit_2x2_regs },
-	},
-	{
-		/* Experimental centered 1920x1056 (1.85:1) RAW16 ClearHDR crop, 2x2 binned. */
-		.width = 1920, .height = 1056, .hmax_div = 1,
-		.binning = 2, .windowed = true, .raw16 = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 2162,
-		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
-		.crop = { .left = 0, .top = 44, .width = 3840, .height = 2072 },
-		.reg_list = { ARRAY_SIZE(mode_window_16bit_2x2_regs), mode_window_16bit_2x2_regs },
-	},
-	{
-		/* Experimental centered 1920x1036 (1.89:1) RAW16 ClearHDR crop, 2x2 binned. */
-		.width = 1920, .height = 1036, .hmax_div = 1,
-		.binning = 2, .windowed = true, .raw16 = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 2122,
-		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
-		.crop = { .left = 0, .top = 64, .width = 3840, .height = 2032 },
-		.reg_list = { ARRAY_SIZE(mode_window_16bit_2x2_regs), mode_window_16bit_2x2_regs },
-	},
-	{
-		/* Experimental centered 1920x1032 (1.90:1) RAW16 ClearHDR crop, 2x2 binned. */
-		.width = 1920, .height = 1032, .hmax_div = 1,
-		.binning = 2, .windowed = true, .raw16 = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 2114,
-		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
-		.crop = { .left = 0, .top = 68, .width = 3840, .height = 2024 },
-		.reg_list = { ARRAY_SIZE(mode_window_16bit_2x2_regs), mode_window_16bit_2x2_regs },
-	},
-	{
-		/* Experimental centered 1920x980 (2.00:1) RAW16 ClearHDR crop, 2x2 binned. */
-		.width = 1920, .height = 980, .hmax_div = 1,
-		.binning = 2, .windowed = true, .raw16 = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 2010,
-		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
-		.crop = { .left = 0, .top = 120, .width = 3840, .height = 1920 },
-		.reg_list = { ARRAY_SIZE(mode_window_16bit_2x2_regs), mode_window_16bit_2x2_regs },
-	},
-	{
-		/* Experimental centered 1920x892 (2.20:1) RAW16 ClearHDR crop, 2x2 binned. */
-		.width = 1920, .height = 892, .hmax_div = 1,
-		.binning = 2, .windowed = true, .raw16 = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 1834,
-		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
-		.crop = { .left = 0, .top = 208, .width = 3840, .height = 1744 },
-		.reg_list = { ARRAY_SIZE(mode_window_16bit_2x2_regs), mode_window_16bit_2x2_regs },
-	},
-	{
-		/* Experimental centered 1920x884 (2.22:1) RAW16 ClearHDR crop, 2x2 binned. */
-		.width = 1920, .height = 884, .hmax_div = 1,
-		.binning = 2, .windowed = true, .raw16 = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 1818,
-		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
-		.crop = { .left = 0, .top = 216, .width = 3840, .height = 1728 },
-		.reg_list = { ARRAY_SIZE(mode_window_16bit_2x2_regs), mode_window_16bit_2x2_regs },
-	},
-	{
-		/* Experimental centered 1920x836 (2.35:1) RAW16 ClearHDR crop, 2x2 binned. */
-		.width = 1920, .height = 836, .hmax_div = 1,
-		.binning = 2, .windowed = true, .raw16 = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 1722,
-		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
-		.crop = { .left = 0, .top = 264, .width = 3840, .height = 1632 },
-		.reg_list = { ARRAY_SIZE(mode_window_16bit_2x2_regs), mode_window_16bit_2x2_regs },
-	},
-	{
-		/* Experimental centered 1920x824 (2.39:1) RAW16 ClearHDR crop, 2x2 binned. */
-		.width = 1920, .height = 824, .hmax_div = 1,
-		.binning = 2, .windowed = true, .raw16 = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 1698,
-		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
-		.crop = { .left = 0, .top = 276, .width = 3840, .height = 1608 },
-		.reg_list = { ARRAY_SIZE(mode_window_16bit_2x2_regs), mode_window_16bit_2x2_regs },
-	},
-	{
-		/* Experimental centered 1920x788 (2.50:1) RAW16 ClearHDR crop, 2x2 binned. */
-		.width = 1920, .height = 788, .hmax_div = 1,
-		.binning = 2, .windowed = true, .raw16 = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 1626,
-		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
-		.crop = { .left = 0, .top = 312, .width = 3840, .height = 1536 },
-		.reg_list = { ARRAY_SIZE(mode_window_16bit_2x2_regs), mode_window_16bit_2x2_regs },
-	},
-	{
-		/* Experimental centered 1920x772 (2.55:1) RAW16 ClearHDR crop, 2x2 binned. */
-		.width = 1920, .height = 772, .hmax_div = 1,
-		.binning = 2, .windowed = true, .raw16 = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 1594,
-		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
-		.crop = { .left = 0, .top = 328, .width = 3840, .height = 1504 },
-		.reg_list = { ARRAY_SIZE(mode_window_16bit_2x2_regs), mode_window_16bit_2x2_regs },
-	},
-	{
-		/* Experimental 1440x1080 2x2 RAW16 ClearHDR crop. */
-		.width = 1440, .height = 1100, .hmax_div = 1,
-		.binning = 2, .windowed = true, .raw16 = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 2250,
-		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
-		.crop = { .left = 480, .top = 0, .width = 2880, .height = 2160 },
-		.reg_list = { ARRAY_SIZE(mode_window_16bit_2x2_regs), mode_window_16bit_2x2_regs },
 	},
 };
 static struct imx585_mode supported_10bit_modes[] = {
@@ -2089,7 +1975,7 @@ static inline void get_mode_table(struct imx585 *imx585, unsigned int code,
 		case MEDIA_BUS_FMT_SGBRG16_1X16:
 		case MEDIA_BUS_FMT_SBGGR16_1X16:
 			*mode_list = &supported_modes[IMX585_MODE_4K_16BIT_HDR];
-			*num_modes = IMX585_MODE_CROP_16_BIN_1440X1080 -
+			*num_modes = IMX585_MODE_1080P_16BIT_HDR -
 				     IMX585_MODE_4K_16BIT_HDR + 1;
 			break;
 
@@ -3481,7 +3367,7 @@ out_put:
 /*
  * Audit one mode table (called for supported_modes[] and
  * supported_10bit_modes[]) against the invariants WP-585-1 through
- * WP-585-5 established. This table has broken in four independent ways in
+ * WP-585-8 established. This table has broken in four independent ways in
  * one day of history, and every failure showed up either at stream-on or
  * as a bad image, never at build time -- so warn loudly here instead of
  * trusting a static initialiser to stay correct.
@@ -3579,6 +3465,17 @@ static void imx585_check_mode_table(struct device *dev,
 					 "%s[%u]: RAW16 advertised height %u != delivered buffer height %u\n",
 					 table_name, i, m->height, expected);
 		}
+
+		/* WP-585-8, 2026-09-21: a windowed (sensor-cropped) 2x2-binned
+		 * RAW16 entry returns the OB pedestal, not an image, on
+		 * hardware -- confirmed by four takes with byte-level
+		 * analysis. Binned Clear HDR is full-field only on this
+		 * sensor; nobody should re-add a binned crop from the
+		 * aspect-ratio family into the RAW16 range. */
+		if (m->raw16 && m->windowed && m->binning == 2)
+			dev_warn(dev,
+				 "%s[%u] %ux%u: windowed 2x2 RAW16 reads back as OB pedestal on hw (WP-585-8)\n",
+				 table_name, i, m->width, m->height);
 
 		for (j = 0; j < i; ++j) {
 			if (table[j].width == m->width &&
