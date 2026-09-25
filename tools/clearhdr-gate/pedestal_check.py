@@ -140,8 +140,10 @@ def pick_frames(path, frames):
             raise ValueError(f"no .dng files in {path}")
         if len(names) <= frames:
             picks = names
+        elif frames > 1:
+            picks = [names[int(round(i * (len(names) - 1) / (frames - 1)))] for i in range(frames)]
         else:
-            picks = [names[int(round(i * (len(names) - 1) / (frames - 1)))] for i in range(frames)] if frames > 1 else [names[len(names) // 2]]
+            picks = [names[len(names) // 2]]
         return [os.path.join(path, n) for n in dict.fromkeys(picks)]
     return [path]
 
@@ -176,7 +178,8 @@ def main(argv=None):
             top = "-" if r["top_mean"] is None else f"{r['top_mean']:7.1f}"
             print(f"{label:<44} {img.shape[1]:>5}x{img.shape[0]:<4} {tags[TAG_BITS]:>4} "
                   f"{'-' if black is None else int(black):>6} {r['fill']:>6} {100 * r['fill_share']:>6.1f}% "
-                  f"{r['distinct']:>8} {100 * r['flat_share']:>6.1f}% {r['p1']:>6.0f} {r['p50']:>6.0f} {r['p99']:>6.0f} {top:>7}  {r['verdict']}")
+                  f"{r['distinct']:>8} {100 * r['flat_share']:>6.1f}% {r['p1']:>6.0f} {r['p50']:>6.0f} "
+                  f"{r['p99']:>6.0f} {top:>7}  {r['verdict']}")
             verdicts.setdefault(path, []).append(r["verdict"])
     if verdicts:
         print()
