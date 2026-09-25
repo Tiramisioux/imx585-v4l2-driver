@@ -4,6 +4,7 @@
  *
  */
 
+#include <linux/build_bug.h>
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/gpio/consumer.h>
@@ -770,9 +771,16 @@ static const struct cci_reg_sequence mode_4k_regs_16bit[] = {
  * ASPECT-RATIOS.md on top of that invariant, and it still holds):
  *   12-bit modes: 1080p 2x2 binned full field (1.78:1), 4K all-pixel
  *       (1.78:1), then the aspect-ratio family's 1x1 crops (1.33:1's
- *       2880x2160 plus the twelve other ratios), then the family's 2x2
- *       crops (the same twelve ratios, halved), then the 1x1 ClearHDR-12
- *       1440x1080 crop. The family has no 1.33:1 2x2 entry: it would
+ *       2880x2160 plus the twelve other ratios), then the 1x1 ClearHDR-12
+ *       1440x1080 crop, then the family's 2x2 crops (the same twelve
+ *       ratios, halved) last. WP-585-9 put the 2x2 crops after the
+ *       HDR-12 crop so the 12-bit Clear HDR range in get_mode_table()
+ *       can end before them: nothing has validated a windowed 2x2
+ *       readout in Clear HDR at 12 bits, and WP-585-8 showed windowing
+ *       plus binning breaks Clear HDR at RAW16. They stay SDR-only until
+ *       the hardware gate in tools/clearhdr-gate/ says otherwise; the
+ *       static_asserts after the enum pin the order both ranges depend
+ *       on. The family has no 1.33:1 2x2 entry: it would
  *       advertise 1440x1080, which the ClearHDR-12 crop already owns, and
  *       every other 2x2-windowed duplicate of a 1x1 entry at the same
  *       advertised size lost to it under v4l2_find_nearest_size() the same
@@ -828,9 +836,18 @@ enum imx585_mode_id {
 	IMX585_MODE_CROP_3840X1608,		/* 2.39:1 */
 	IMX585_MODE_CROP_3840X1536,		/* 2.50:1 */
 	IMX585_MODE_CROP_3840X1504,		/* 2.55:1 */
+	IMX585_MODE_CROP_1440X1080_HDR12,
 	/* Aspect-ratio family, 2x2 binned, ASPECT-RATIOS.md's binned table.
 	 * 1.78:1 is IMX585_MODE_1080P_12BIT above; 1.33:1 has no 2x2 entry
-	 * here (see the comment on the HDR-12 crop below). */
+	 * here (see the comment on the HDR-12 crop above).
+	 *
+	 * WP-585-9: these sit AFTER the HDR-12 crop on purpose. The 12-bit
+	 * Clear HDR (CCMP) range in get_mode_table() ends at
+	 * IMX585_MODE_CROP_1440X1080_HDR12, so a windowed 2x2 crop is offered
+	 * in SDR only until the hardware gate in tools/clearhdr-gate/ clears
+	 * it: WP-585-8 showed windowing plus 2x2 binning breaks Clear HDR at
+	 * RAW16, and nothing has shown the 12-bit path is any different. The
+	 * static_asserts below pin this order. */
 	IMX585_MODE_CROP_BIN_1080X1080,	/* 1:1 */
 	IMX585_MODE_CROP_BIN_1488X1080,	/* 1.37:1 */
 	IMX585_MODE_CROP_BIN_1920X1036,	/* 1.85:1 */
@@ -843,7 +860,6 @@ enum imx585_mode_id {
 	IMX585_MODE_CROP_BIN_1920X804,		/* 2.39:1 */
 	IMX585_MODE_CROP_BIN_1920X768,		/* 2.50:1 */
 	IMX585_MODE_CROP_BIN_1920X752,		/* 2.55:1 */
-	IMX585_MODE_CROP_1440X1080_HDR12,
 	IMX585_MODE_4K_16BIT_HDR,
 	IMX585_MODE_CROP_16_2880X2160,		/* 1.33:1, 1x1 */
 	/* Aspect-ratio family, 1x1, RAW16 ClearHDR. */
@@ -867,6 +883,38 @@ enum imx585_mode_id {
 	 * comment above IMX585_MODE_1080P_16BIT_HDR's table entry. */
 	IMX585_MODE_1080P_16BIT_HDR,
 };
+
+/*
+ * WP-585-9: get_mode_table() hands out the 12-bit Clear HDR list as the
+ * contiguous range [IMX585_MODE_1080P_12BIT, IMX585_MODE_CROP_1440X1080_HDR12]
+ * and the 12-bit SDR list as [IMX585_MODE_1080P_12BIT, IMX585_MODE_4K_16BIT_HDR).
+ * Both only mean what they say while the windowed 2x2 crops sit between
+ * the HDR-12 crop and the RAW16 block, so pin that here: a reordering
+ * fails to build instead of silently re-opening Clear HDR to the crops
+ * the gate keeps out.
+ */
+static_assert(IMX585_MODE_1080P_12BIT == 0);
+static_assert(IMX585_MODE_CROP_1440X1080_HDR12 + 1 == IMX585_MODE_CROP_BIN_1080X1080);
+static_assert(IMX585_MODE_CROP_BIN_1920X752 + 1 == IMX585_MODE_4K_16BIT_HDR);
+
+/*
+ * WP-585-9 hardware-gate switch. Off, the default, the 12-bit Clear HDR
+ * range stops before the windowed 2x2 crops. On, it runs to the RAW16
+ * block and offers them, unvalidated, so the takes in
+ * tools/clearhdr-gate/README.md can be recorded on this same build:
+ *
+ *   echo 'options imx585 clearhdr_windowed_binning=1' | \
+ *       sudo tee /etc/modprobe.d/imx585-gate.conf
+ *   sudo reboot
+ *
+ * A module parameter rather than a dtoverlay property because it is a
+ * test switch: it must never end up in an installer's config.txt, and
+ * removing the file above puts the gate back.
+ */
+static bool clearhdr_windowed_binning;
+module_param(clearhdr_windowed_binning, bool, 0444);
+MODULE_PARM_DESC(clearhdr_windowed_binning,
+		 "Offer the windowed 2x2 crops in 12-bit Clear HDR too (WP-585-9 hardware gate only; default off)");
 
 /*
  * mode->crop below is in NATIVE SENSOR-PIXEL coordinates, not output
@@ -1044,10 +1092,40 @@ static struct imx585_mode supported_modes[] = {
 		.crop = { .left = 0, .top = 328, .width = 3840, .height = 1504 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_1x1_regs), mode_window_12bit_1x1_regs },
 	},
+	{
+		/* ClearHDR 12-bit centered 1440x1080 crop, 1x1.
+		 *
+		 * Keep the HDR-12 crop on the proven all-pixel readout path.
+		 * WP-585-5 (DEC-1 exception): the sensor's native 2x2 binned
+		 * 1920x1080 readout is available in both SDR and ClearHDR-12
+		 * (see the get_mode_table() ClearHDR-12 case), but the
+		 * experimental sensor-windowed 2x2 variant of THIS size
+		 * produced invalid colour data on hardware and has been
+		 * dropped from the table entirely, not merely hidden from
+		 * ClearHDR -- it duplicated this entry's advertised size and
+		 * was unreachable regardless. WP-585-9 widened that question to
+		 * every windowed 2x2 crop: they follow this entry in the table
+		 * and are kept out of the Clear HDR range until the hardware
+		 * gate in tools/clearhdr-gate/ clears them.
+		 */
+		.width = 1440, .height = 1080, .hmax_div = 1,
+		.binning = 1, .windowed = true,
+		.hmax_table = HMAX_table_4lane_4K_12bit,
+		.min_hmax = 550, .min_vmax = 1150,
+		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
+		.crop = { .left = 1200, .top = 540, .width = 1440, .height = 1080 },
+		.reg_list = { ARRAY_SIZE(mode_window_12bit_1x1_regs), mode_window_12bit_1x1_regs },
+	},
 	/* Aspect-ratio family, 2x2 binned: same sensor-row window as the
 	 * 1x1 entries above (binning happens after readout), output size
 	 * halved. No 1.33:1 entry here: it would advertise 1440x1080, which
-	 * the ClearHDR-12 crop below already owns (WP-585-5). */
+	 * the ClearHDR-12 crop above already owns (WP-585-5).
+	 *
+	 * WP-585-9: this block sits after the HDR-12 crop on purpose, so the
+	 * 12-bit Clear HDR range in get_mode_table() ends before it. These
+	 * crops are SDR-only until the hardware gate in tools/clearhdr-gate/
+	 * clears them, or the clearhdr_windowed_binning module parameter
+	 * opens the range for that gate's takes. */
 	{
 		/* Experimental centered 1080x1080 (1:1) crop, 2x2 binned. */
 		.width = 1080, .height = 1080, .hmax_div = 1,
@@ -1167,28 +1245,6 @@ static struct imx585_mode supported_modes[] = {
 		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
 		.crop = { .left = 0, .top = 328, .width = 3840, .height = 1504 },
 		.reg_list = { ARRAY_SIZE(mode_window_12bit_2x2_regs), mode_window_12bit_2x2_regs },
-	},
-	{
-		/* ClearHDR 12-bit centered 1440x1080 crop, 1x1.
-		 *
-		 * Keep the HDR-12 crop on the proven all-pixel readout path.
-		 * WP-585-5 (DEC-1 exception): the sensor's native 2x2 binned
-		 * 1920x1080 readout is available in both SDR and ClearHDR-12
-		 * (see the get_mode_table() ClearHDR-12 case), but the
-		 * experimental sensor-windowed 2x2 variant of THIS size
-		 * produced invalid colour data on hardware and has been
-		 * dropped from the table entirely, not merely hidden from
-		 * ClearHDR -- it duplicated this entry's advertised size and
-		 * was unreachable regardless. Revisit once a Pi gate proves
-		 * the 2x2 window at 1440x1080.
-		 */
-		.width = 1440, .height = 1080, .hmax_div = 1,
-		.binning = 1, .windowed = true,
-		.hmax_table = HMAX_table_4lane_4K_12bit,
-		.min_hmax = 550, .min_vmax = 1150,
-		.min_vmax_default = 0, /* derived: IMX585_CROP_VMAX(vwidth) */
-		.crop = { .left = 1200, .top = 540, .width = 1440, .height = 1080 },
-		.reg_list = { ARRAY_SIZE(mode_window_12bit_1x1_regs), mode_window_12bit_1x1_regs },
 	},
 
 	{
@@ -1994,24 +2050,36 @@ static inline void get_mode_table(struct imx585 *imx585, unsigned int code,
 			if (imx585->clear_hdr) {
 				if (imx585->clearhdr_ccmp) {
 					/*
-					 * WP-585-5/DEC-2: restore the binned full-field
-					 * 1920x1080 readout to ClearHDR-12 (this is what
-					 * cinemate-7modes offered and what the comment
-					 * above already claimed -- "colour offers binned
-					 * + 4K in Clear HDR" -- but the range used to
-					 * start one entry later, at IMX585_MODE_4K_12BIT,
-					 * which silently turned 1920x1080 into a 1x1
-					 * centre crop). The 12-bit table no longer has a
-					 * 2x2-windowed crop family at all (see D1/WP-585-5:
-					 * each of those duplicated a 1x1 entry's advertised
-					 * size and was unreachable, and the 1440x1080 2x2
-					 * window besides is unvalidated on hardware), so
-					 * this range is now identical to the SDR 12-bit
-					 * range below.
+					 * WP-585-5/DEC-2 restored the binned full-field
+					 * 1920x1080 readout to ClearHDR-12 by starting
+					 * this range at IMX585_MODE_1080P_12BIT (it used
+					 * to start one entry later, which silently turned
+					 * 1920x1080 into a 1x1 centre crop).
+					 *
+					 * WP-585-9: the range ENDS at the 1x1 HDR-12
+					 * 1440x1080 crop, so it offers the two full-field
+					 * readouts and every 1x1 crop, and not the
+					 * windowed 2x2 crops that follow it in the table
+					 * (WP-585-6 re-added that family after WP-585-5
+					 * had said it was gone, and this range silently
+					 * grew to cover it). Nothing has validated a
+					 * windowed 2x2 readout in Clear HDR at 12 bits:
+					 * WP-585-8 showed windowing plus binning returns
+					 * the OB pedestal at RAW16, and the 1440x1080
+					 * entry's own comment records invalid colour from
+					 * a windowed 2x2 on hardware. The
+					 * clearhdr_windowed_binning module parameter
+					 * re-opens the range to the RAW16 block for the
+					 * hardware gate in tools/clearhdr-gate/, and for
+					 * nothing else. The static_asserts after the enum
+					 * pin the table order both ranges depend on.
 					 */
 					*mode_list = &supported_modes[IMX585_MODE_1080P_12BIT];
-					*num_modes = IMX585_MODE_4K_16BIT_HDR -
-						     IMX585_MODE_1080P_12BIT;
+					*num_modes = clearhdr_windowed_binning ?
+						IMX585_MODE_4K_16BIT_HDR -
+							IMX585_MODE_1080P_12BIT :
+						IMX585_MODE_CROP_1440X1080_HDR12 -
+							IMX585_MODE_1080P_12BIT + 1;
 				}
 			} else {
 				*mode_list = supported_modes;
@@ -3385,6 +3453,13 @@ out_put:
  * floor is independently re-derived and enforced per device at every
  * mode-select via imx585_set_framing_limits() -> imx585_update_hmax().
  *
+ * The one invariant this audit cannot see is a RANGE decision:
+ * get_mode_table() offers 12-bit Clear HDR as [IMX585_MODE_1080P_12BIT,
+ * IMX585_MODE_CROP_1440X1080_HDR12] (WP-585-9), which keeps the windowed
+ * 2x2 crops out only while they sit after the HDR-12 crop. That order is
+ * not table data, so it is pinned by static_assert next to the enum
+ * rather than checked here.
+ *
  * Warn only: never fail probe over this. A camera that enumerates with a
  * warning is debuggable; one that does not bind is not.
  */
@@ -3588,6 +3663,9 @@ static int imx585_probe(struct i2c_client *client)
 	 * imx585_set_framing_limits().
 	 */
 	imx585_check_mode_tables(dev);
+	if (clearhdr_windowed_binning)
+		dev_warn(dev,
+			 "clearhdr_windowed_binning=1: offering the windowed 2x2 crops in 12-bit Clear HDR for the WP-585-9 hardware gate; they are unvalidated there\n");
 
 	imx585->regmap = devm_cci_regmap_init_i2c(client, 16);
 	if (IS_ERR(imx585->regmap))
