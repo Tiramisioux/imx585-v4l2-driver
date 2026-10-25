@@ -343,6 +343,7 @@ struct imx585_mode {
 
 	u8  hmax_div;       /* per-mode scaling of min HMAX */
 	u16 min_hmax;       /* computed at runtime */
+	u32 base_vmax;      /* per-mode nominal VMAX before HDR scaling */
 	u32 min_vmax;       /* computed at runtime (fits 20-bit) */
 
 	struct v4l2_rect crop;
@@ -555,17 +556,22 @@ static const struct cci_reg_sequence common_normal_mode[] = {
  *    H10 (1) + start of vertical blanking, which the BE crop discards
  *    along with the OB.
  */
-#define IMX585_WIN_CROP_REGS_COMMON \
+#define IMX585_WIN_CROP_HST          8U
+#define IMX585_WIN_CROP_ACTIVE_VST   12U
+#define IMX585_CROP_VMAX(height)     ((height) + 72U)
+
+#define IMX585_WIN_CROP_REGS_WH(hst, hwidth, vst, vwidth) \
 	{ IMX585_REG_WINMODE,    IMX585_WINMODE_CROP }, \
-	{ IMX585_REG_PIX_HST,    8    }, /* skip H-margin   */ \
-	{ IMX585_REG_PIX_HWIDTH, 3840 }, /* active width    */ \
-	{ IMX585_REG_PIX_VST,    12   }  /* H6 + H7         */
+	{ IMX585_REG_PIX_HST,    (hst) }, \
+	{ IMX585_REG_PIX_HWIDTH, (hwidth) }, \
+	{ IMX585_REG_PIX_VST,    (vst) }, \
+	{ IMX585_REG_PIX_VWIDTH, (vwidth) }
+#define IMX585_WIN_CROP_REGS(vst, vwidth) \
+	IMX585_WIN_CROP_REGS_WH(IMX585_WIN_CROP_HST, IMX585_PIXEL_ARRAY_WIDTH, (vst), (vwidth))
 #define IMX585_WIN_CROP_REGS_12BIT \
-	IMX585_WIN_CROP_REGS_COMMON, \
-	{ IMX585_REG_PIX_VWIDTH, 2160 }  /* active height   */
+	IMX585_WIN_CROP_REGS(IMX585_WIN_CROP_ACTIVE_VST, 2160)  /* active height */
 #define IMX585_WIN_CROP_REGS_16BIT \
-	IMX585_WIN_CROP_REGS_COMMON, \
-	{ IMX585_REG_PIX_VWIDTH, 2180 }  /* active + 20 to compensate for OB prepend */
+	IMX585_WIN_CROP_REGS(IMX585_WIN_CROP_ACTIVE_VST, 2180)  /* active + 20 to compensate for OB prepend */
 
 /* All-pixel 4K, 12-bit */
 static const struct cci_reg_sequence mode_4k_regs_12bit[] = {
@@ -576,13 +582,158 @@ static const struct cci_reg_sequence mode_4k_regs_12bit[] = {
 	IMX585_WIN_CROP_REGS_12BIT,
 };
 
-/* 2x2 binned 1080p, 12-bit */
+/* Full-width RAW12 aspect crops. VST is centered inside the 2160 active area. */
+static const struct cci_reg_sequence mode_3840x2076_regs_12bit[] = {
+	{ CCI_REG8(0x301b), 0x00 },
+	{ CCI_REG8(0x3022), 0x02 },
+	{ CCI_REG8(0x3023), 0x01 },
+	{ CCI_REG8(0x30d5), 0x04 },
+	IMX585_WIN_CROP_REGS(54, 2076),
+};
+
+static const struct cci_reg_sequence mode_3840x2024_regs_12bit[] = {
+	{ CCI_REG8(0x301b), 0x00 },
+	{ CCI_REG8(0x3022), 0x02 },
+	{ CCI_REG8(0x3023), 0x01 },
+	{ CCI_REG8(0x30d5), 0x04 },
+	IMX585_WIN_CROP_REGS(80, 2024),
+};
+
+static const struct cci_reg_sequence mode_3840x1920_regs_12bit[] = {
+	{ CCI_REG8(0x301b), 0x00 },
+	{ CCI_REG8(0x3022), 0x02 },
+	{ CCI_REG8(0x3023), 0x01 },
+	{ CCI_REG8(0x30d5), 0x04 },
+	IMX585_WIN_CROP_REGS(132, 1920),
+};
+
+static const struct cci_reg_sequence mode_3840x1744_regs_12bit[] = {
+	{ CCI_REG8(0x301b), 0x00 },
+	{ CCI_REG8(0x3022), 0x02 },
+	{ CCI_REG8(0x3023), 0x01 },
+	{ CCI_REG8(0x30d5), 0x04 },
+	IMX585_WIN_CROP_REGS(220, 1744),
+};
+
+static const struct cci_reg_sequence mode_3840x1728_regs_12bit[] = {
+	{ CCI_REG8(0x301b), 0x00 },
+	{ CCI_REG8(0x3022), 0x02 },
+	{ CCI_REG8(0x3023), 0x01 },
+	{ CCI_REG8(0x30d5), 0x04 },
+	IMX585_WIN_CROP_REGS(228, 1728),
+};
+
+static const struct cci_reg_sequence mode_3840x1632_regs_12bit[] = {
+	{ CCI_REG8(0x301b), 0x00 },
+	{ CCI_REG8(0x3022), 0x02 },
+	{ CCI_REG8(0x3023), 0x01 },
+	{ CCI_REG8(0x30d5), 0x04 },
+	IMX585_WIN_CROP_REGS(276, 1632),
+};
+
+static const struct cci_reg_sequence mode_3840x1608_regs_12bit[] = {
+	{ CCI_REG8(0x301b), 0x00 },
+	{ CCI_REG8(0x3022), 0x02 },
+	{ CCI_REG8(0x3023), 0x01 },
+	{ CCI_REG8(0x30d5), 0x04 },
+	IMX585_WIN_CROP_REGS(288, 1608),
+};
+
+static const struct cci_reg_sequence mode_3840x1536_regs_12bit[] = {
+	{ CCI_REG8(0x301b), 0x00 },
+	{ CCI_REG8(0x3022), 0x02 },
+	{ CCI_REG8(0x3023), 0x01 },
+	{ CCI_REG8(0x30d5), 0x04 },
+	IMX585_WIN_CROP_REGS(324, 1536),
+};
+
+static const struct cci_reg_sequence mode_3840x1504_regs_12bit[] = {
+	{ CCI_REG8(0x301b), 0x00 },
+	{ CCI_REG8(0x3022), 0x02 },
+	{ CCI_REG8(0x3023), 0x01 },
+	{ CCI_REG8(0x30d5), 0x04 },
+	IMX585_WIN_CROP_REGS(340, 1504),
+};
+
+/* 2x2 binned Full HD RAW12 modes. Crops are vertical-only and centered. */
 static const struct cci_reg_sequence mode_1080_regs_12bit[] = {
 	{ CCI_REG8(0x301b), 0x01 }, /* ADDMODE binning */
 	{ CCI_REG8(0x3022), 0x02 }, /* ADBIT 12-bit */
 	{ CCI_REG8(0x3023), 0x01 }, /* MDBIT 12-bit */
 	{ CCI_REG8(0x30d5), 0x02 }, /* DIG_CLP_VSTART binning */
 	IMX585_WIN_CROP_REGS_12BIT,
+};
+
+static const struct cci_reg_sequence mode_1920x1038_regs_12bit[] = {
+	{ CCI_REG8(0x301b), 0x01 },
+	{ CCI_REG8(0x3022), 0x02 },
+	{ CCI_REG8(0x3023), 0x01 },
+	{ CCI_REG8(0x30d5), 0x02 },
+	IMX585_WIN_CROP_REGS(54, 2076),
+};
+
+static const struct cci_reg_sequence mode_1920x1012_regs_12bit[] = {
+	{ CCI_REG8(0x301b), 0x01 },
+	{ CCI_REG8(0x3022), 0x02 },
+	{ CCI_REG8(0x3023), 0x01 },
+	{ CCI_REG8(0x30d5), 0x02 },
+	IMX585_WIN_CROP_REGS(80, 2024),
+};
+
+static const struct cci_reg_sequence mode_1920x960_regs_12bit[] = {
+	{ CCI_REG8(0x301b), 0x01 },
+	{ CCI_REG8(0x3022), 0x02 },
+	{ CCI_REG8(0x3023), 0x01 },
+	{ CCI_REG8(0x30d5), 0x02 },
+	IMX585_WIN_CROP_REGS(132, 1920),
+};
+
+static const struct cci_reg_sequence mode_1920x872_regs_12bit[] = {
+	{ CCI_REG8(0x301b), 0x01 },
+	{ CCI_REG8(0x3022), 0x02 },
+	{ CCI_REG8(0x3023), 0x01 },
+	{ CCI_REG8(0x30d5), 0x02 },
+	IMX585_WIN_CROP_REGS(220, 1744),
+};
+
+static const struct cci_reg_sequence mode_1920x864_regs_12bit[] = {
+	{ CCI_REG8(0x301b), 0x01 },
+	{ CCI_REG8(0x3022), 0x02 },
+	{ CCI_REG8(0x3023), 0x01 },
+	{ CCI_REG8(0x30d5), 0x02 },
+	IMX585_WIN_CROP_REGS(228, 1728),
+};
+
+static const struct cci_reg_sequence mode_1920x816_regs_12bit[] = {
+	{ CCI_REG8(0x301b), 0x01 },
+	{ CCI_REG8(0x3022), 0x02 },
+	{ CCI_REG8(0x3023), 0x01 },
+	{ CCI_REG8(0x30d5), 0x02 },
+	IMX585_WIN_CROP_REGS(276, 1632),
+};
+
+static const struct cci_reg_sequence mode_1920x804_regs_12bit[] = {
+	{ CCI_REG8(0x301b), 0x01 },
+	{ CCI_REG8(0x3022), 0x02 },
+	{ CCI_REG8(0x3023), 0x01 },
+	{ CCI_REG8(0x30d5), 0x02 },
+	IMX585_WIN_CROP_REGS(288, 1608),
+};
+
+static const struct cci_reg_sequence mode_1920x768_regs_12bit[] = {
+	{ CCI_REG8(0x301b), 0x01 },
+	{ CCI_REG8(0x3022), 0x02 },
+	{ CCI_REG8(0x3023), 0x01 },
+	{ CCI_REG8(0x30d5), 0x02 },
+	IMX585_WIN_CROP_REGS(324, 1536),
+};
+
+static const struct cci_reg_sequence mode_1920x752_regs_12bit[] = {
+	{ CCI_REG8(0x301b), 0x01 },
+	{ CCI_REG8(0x3022), 0x02 },
+	{ CCI_REG8(0x3023), 0x01 },
+	{ CCI_REG8(0x30d5), 0x02 },
+	IMX585_WIN_CROP_REGS(340, 1504),
 };
 
 /*
@@ -605,7 +756,7 @@ static const struct cci_reg_sequence mode_4k_regs_16bit[] = {
  * Mode list
  * --------------------------------------------------------------------------
  * Default:
- *   12Bit - FHD, 4K
+ *   12Bit - FHD, 4K, full-width aspect crops
  * ClearHDR Enabled:
  *   12bit + Gradation compression
  *   16bit - FHD, 4K
@@ -626,16 +777,19 @@ static const struct cci_reg_sequence mode_4k_regs_16bit[] = {
 
 /*
  * Mode array layout:
- *   [0] 1080p binned (12-bit; ClearHDR FHD binning is unusable)
- *   [1] 4K all-pixel for 12-bit formats (SDR + ClearHDR-12 CCMP).
+ *   [0] 1080p binned (12-bit; ClearHDR FHD binning is unusable).
+ *   [1..9] 1080p binned full-width vertical aspect crops.
+ *   [10] 4K all-pixel for 12-bit formats (SDR + ClearHDR-12 CCMP).
  *       Sensor-side WINMODE crop strips the OB region — buffer = active.
- *   [2] 4K all-pixel for 16-bit ClearHDR. The sensor still emits 20 OB
+ *   [11..19] RAW12-only full-width vertical aspect crops.
+ *   [20] 4K all-pixel for 16-bit ClearHDR. The sensor still emits 20 OB
  *       rows at the top of the buffer in this format (CFE accepts every
  *       CSI2 packet type because csi_dt=0 for RAW16, and no IMX585
  *       register suppresses the H4+H5 OB-row output). Advertise height
  *       = active + 20, set crop.top = 20 so libcamera/BE skip the OB.
  *
- * get_mode_table() routes 12-bit → modes [0..1], 16-bit → mode [2].
+ * get_mode_table() routes SDR 12-bit -> entries [0..19],
+ * ClearHDR 12-bit -> mode [10], and 16-bit -> mode [20].
  */
 static struct imx585_mode supported_modes[] = {
 	{
@@ -644,6 +798,7 @@ static struct imx585_mode supported_modes[] = {
 		.height = IMX585_PIXEL_ARRAY_HEIGHT / 2, /* 1080 */
 		.hmax_div = 1,
 		.min_hmax = 366,            /* overwritten at runtime */
+		.base_vmax = IMX585_VMAX_DEFAULT,
 		.min_vmax = IMX585_VMAX_DEFAULT,
 		.crop = {
 			.left = 0,
@@ -657,11 +812,183 @@ static struct imx585_mode supported_modes[] = {
 		},
 	},
 	{
+		/* 1.85:1 2x2 binned, full-width RAW12 crop */
+		.width = IMX585_PIXEL_ARRAY_WIDTH / 2,
+		.height = 1038,
+		.hmax_div = 1,
+		.min_hmax = 366,
+		.base_vmax = IMX585_CROP_VMAX(2076),
+		.min_vmax = IMX585_CROP_VMAX(2076),
+		.crop = {
+			.left = 0,
+			.top = 0,
+			.width = IMX585_PIXEL_ARRAY_WIDTH / 2,
+			.height = 1038,
+		},
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(mode_1920x1038_regs_12bit),
+			.regs = mode_1920x1038_regs_12bit,
+		},
+	},
+	{
+		/* 1.90:1 2x2 binned, full-width RAW12 crop */
+		.width = IMX585_PIXEL_ARRAY_WIDTH / 2,
+		.height = 1012,
+		.hmax_div = 1,
+		.min_hmax = 366,
+		.base_vmax = IMX585_CROP_VMAX(2024),
+		.min_vmax = IMX585_CROP_VMAX(2024),
+		.crop = {
+			.left = 0,
+			.top = 0,
+			.width = IMX585_PIXEL_ARRAY_WIDTH / 2,
+			.height = 1012,
+		},
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(mode_1920x1012_regs_12bit),
+			.regs = mode_1920x1012_regs_12bit,
+		},
+	},
+	{
+		/* 2.00:1 2x2 binned, full-width RAW12 crop */
+		.width = IMX585_PIXEL_ARRAY_WIDTH / 2,
+		.height = 960,
+		.hmax_div = 1,
+		.min_hmax = 366,
+		.base_vmax = IMX585_CROP_VMAX(1920),
+		.min_vmax = IMX585_CROP_VMAX(1920),
+		.crop = {
+			.left = 0,
+			.top = 0,
+			.width = IMX585_PIXEL_ARRAY_WIDTH / 2,
+			.height = 960,
+		},
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(mode_1920x960_regs_12bit),
+			.regs = mode_1920x960_regs_12bit,
+		},
+	},
+	{
+		/* 2.20:1 2x2 binned, full-width RAW12 crop */
+		.width = IMX585_PIXEL_ARRAY_WIDTH / 2,
+		.height = 872,
+		.hmax_div = 1,
+		.min_hmax = 366,
+		.base_vmax = IMX585_CROP_VMAX(1744),
+		.min_vmax = IMX585_CROP_VMAX(1744),
+		.crop = {
+			.left = 0,
+			.top = 0,
+			.width = IMX585_PIXEL_ARRAY_WIDTH / 2,
+			.height = 872,
+		},
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(mode_1920x872_regs_12bit),
+			.regs = mode_1920x872_regs_12bit,
+		},
+	},
+	{
+		/* 2.22:1 2x2 binned, full-width RAW12 crop */
+		.width = IMX585_PIXEL_ARRAY_WIDTH / 2,
+		.height = 864,
+		.hmax_div = 1,
+		.min_hmax = 366,
+		.base_vmax = IMX585_CROP_VMAX(1728),
+		.min_vmax = IMX585_CROP_VMAX(1728),
+		.crop = {
+			.left = 0,
+			.top = 0,
+			.width = IMX585_PIXEL_ARRAY_WIDTH / 2,
+			.height = 864,
+		},
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(mode_1920x864_regs_12bit),
+			.regs = mode_1920x864_regs_12bit,
+		},
+	},
+	{
+		/* 2.35:1 2x2 binned, full-width RAW12 crop */
+		.width = IMX585_PIXEL_ARRAY_WIDTH / 2,
+		.height = 816,
+		.hmax_div = 1,
+		.min_hmax = 366,
+		.base_vmax = IMX585_CROP_VMAX(1632),
+		.min_vmax = IMX585_CROP_VMAX(1632),
+		.crop = {
+			.left = 0,
+			.top = 0,
+			.width = IMX585_PIXEL_ARRAY_WIDTH / 2,
+			.height = 816,
+		},
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(mode_1920x816_regs_12bit),
+			.regs = mode_1920x816_regs_12bit,
+		},
+	},
+	{
+		/* 2.39:1 2x2 binned, full-width RAW12 crop */
+		.width = IMX585_PIXEL_ARRAY_WIDTH / 2,
+		.height = 804,
+		.hmax_div = 1,
+		.min_hmax = 366,
+		.base_vmax = IMX585_CROP_VMAX(1608),
+		.min_vmax = IMX585_CROP_VMAX(1608),
+		.crop = {
+			.left = 0,
+			.top = 0,
+			.width = IMX585_PIXEL_ARRAY_WIDTH / 2,
+			.height = 804,
+		},
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(mode_1920x804_regs_12bit),
+			.regs = mode_1920x804_regs_12bit,
+		},
+	},
+	{
+		/* 2.50:1 2x2 binned, full-width RAW12 crop */
+		.width = IMX585_PIXEL_ARRAY_WIDTH / 2,
+		.height = 768,
+		.hmax_div = 1,
+		.min_hmax = 366,
+		.base_vmax = IMX585_CROP_VMAX(1536),
+		.min_vmax = IMX585_CROP_VMAX(1536),
+		.crop = {
+			.left = 0,
+			.top = 0,
+			.width = IMX585_PIXEL_ARRAY_WIDTH / 2,
+			.height = 768,
+		},
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(mode_1920x768_regs_12bit),
+			.regs = mode_1920x768_regs_12bit,
+		},
+	},
+	{
+		/* 2.55:1 2x2 binned, full-width RAW12 crop */
+		.width = IMX585_PIXEL_ARRAY_WIDTH / 2,
+		.height = 752,
+		.hmax_div = 1,
+		.min_hmax = 366,
+		.base_vmax = IMX585_CROP_VMAX(1504),
+		.min_vmax = IMX585_CROP_VMAX(1504),
+		.crop = {
+			.left = 0,
+			.top = 0,
+			.width = IMX585_PIXEL_ARRAY_WIDTH / 2,
+			.height = 752,
+		},
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(mode_1920x752_regs_12bit),
+			.regs = mode_1920x752_regs_12bit,
+		},
+	},
+	{
 		/* 4K60 all-pixel, 12-bit (SDR + ClearHDR-12 CCMP) */
 		.width = IMX585_PIXEL_ARRAY_WIDTH,   /* 3840 */
 		.height = IMX585_PIXEL_ARRAY_HEIGHT, /* 2160 */
 		.hmax_div = 1,
 		.min_hmax = 550,            /* overwritten at runtime */
+		.base_vmax = IMX585_VMAX_DEFAULT,
 		.min_vmax = IMX585_VMAX_DEFAULT,
 		.crop = {
 			.left = 0,
@@ -672,6 +999,177 @@ static struct imx585_mode supported_modes[] = {
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_4k_regs_12bit),
 			.regs = mode_4k_regs_12bit,
+		},
+	},
+	{
+		/* 1.85:1 full-width RAW12 crop */
+		.width = IMX585_PIXEL_ARRAY_WIDTH,
+		.height = 2076,
+		.hmax_div = 1,
+		.min_hmax = 550,
+		.base_vmax = IMX585_CROP_VMAX(2076),
+		.min_vmax = IMX585_CROP_VMAX(2076),
+		.crop = {
+			.left = 0,
+			.top = 0,
+			.width = IMX585_PIXEL_ARRAY_WIDTH,
+			.height = 2076,
+		},
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(mode_3840x2076_regs_12bit),
+			.regs = mode_3840x2076_regs_12bit,
+		},
+	},
+	{
+		/* 1.90:1 DCI-ish full-width RAW12 crop */
+		.width = IMX585_PIXEL_ARRAY_WIDTH,
+		.height = 2024,
+		.hmax_div = 1,
+		.min_hmax = 550,
+		.base_vmax = IMX585_CROP_VMAX(2024),
+		.min_vmax = IMX585_CROP_VMAX(2024),
+		.crop = {
+			.left = 0,
+			.top = 0,
+			.width = IMX585_PIXEL_ARRAY_WIDTH,
+			.height = 2024,
+		},
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(mode_3840x2024_regs_12bit),
+			.regs = mode_3840x2024_regs_12bit,
+		},
+	},
+	{
+		/* 2.00:1 full-width RAW12 crop */
+		.width = IMX585_PIXEL_ARRAY_WIDTH,
+		.height = 1920,
+		.hmax_div = 1,
+		.min_hmax = 550,
+		.base_vmax = IMX585_CROP_VMAX(1920),
+		.min_vmax = IMX585_CROP_VMAX(1920),
+		.crop = {
+			.left = 0,
+			.top = 0,
+			.width = IMX585_PIXEL_ARRAY_WIDTH,
+			.height = 1920,
+		},
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(mode_3840x1920_regs_12bit),
+			.regs = mode_3840x1920_regs_12bit,
+		},
+	},
+	{
+		/* 2.20:1 full-width RAW12 crop */
+		.width = IMX585_PIXEL_ARRAY_WIDTH,
+		.height = 1744,
+		.hmax_div = 1,
+		.min_hmax = 550,
+		.base_vmax = IMX585_CROP_VMAX(1744),
+		.min_vmax = IMX585_CROP_VMAX(1744),
+		.crop = {
+			.left = 0,
+			.top = 0,
+			.width = IMX585_PIXEL_ARRAY_WIDTH,
+			.height = 1744,
+		},
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(mode_3840x1744_regs_12bit),
+			.regs = mode_3840x1744_regs_12bit,
+		},
+	},
+	{
+		/* 2.22:1 full-width RAW12 crop */
+		.width = IMX585_PIXEL_ARRAY_WIDTH,
+		.height = 1728,
+		.hmax_div = 1,
+		.min_hmax = 550,
+		.base_vmax = IMX585_CROP_VMAX(1728),
+		.min_vmax = IMX585_CROP_VMAX(1728),
+		.crop = {
+			.left = 0,
+			.top = 0,
+			.width = IMX585_PIXEL_ARRAY_WIDTH,
+			.height = 1728,
+		},
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(mode_3840x1728_regs_12bit),
+			.regs = mode_3840x1728_regs_12bit,
+		},
+	},
+	{
+		/* 2.35:1 full-width RAW12 crop */
+		.width = IMX585_PIXEL_ARRAY_WIDTH,
+		.height = 1632,
+		.hmax_div = 1,
+		.min_hmax = 550,
+		.base_vmax = IMX585_CROP_VMAX(1632),
+		.min_vmax = IMX585_CROP_VMAX(1632),
+		.crop = {
+			.left = 0,
+			.top = 0,
+			.width = IMX585_PIXEL_ARRAY_WIDTH,
+			.height = 1632,
+		},
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(mode_3840x1632_regs_12bit),
+			.regs = mode_3840x1632_regs_12bit,
+		},
+	},
+	{
+		/* 2.39:1 full-width RAW12 crop */
+		.width = IMX585_PIXEL_ARRAY_WIDTH,
+		.height = 1608,
+		.hmax_div = 1,
+		.min_hmax = 550,
+		.base_vmax = IMX585_CROP_VMAX(1608),
+		.min_vmax = IMX585_CROP_VMAX(1608),
+		.crop = {
+			.left = 0,
+			.top = 0,
+			.width = IMX585_PIXEL_ARRAY_WIDTH,
+			.height = 1608,
+		},
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(mode_3840x1608_regs_12bit),
+			.regs = mode_3840x1608_regs_12bit,
+		},
+	},
+	{
+		/* 2.50:1 full-width RAW12 crop */
+		.width = IMX585_PIXEL_ARRAY_WIDTH,
+		.height = 1536,
+		.hmax_div = 1,
+		.min_hmax = 550,
+		.base_vmax = IMX585_CROP_VMAX(1536),
+		.min_vmax = IMX585_CROP_VMAX(1536),
+		.crop = {
+			.left = 0,
+			.top = 0,
+			.width = IMX585_PIXEL_ARRAY_WIDTH,
+			.height = 1536,
+		},
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(mode_3840x1536_regs_12bit),
+			.regs = mode_3840x1536_regs_12bit,
+		},
+	},
+	{
+		/* 2.55:1 full-width RAW12 crop */
+		.width = IMX585_PIXEL_ARRAY_WIDTH,
+		.height = 1504,
+		.hmax_div = 1,
+		.min_hmax = 550,
+		.base_vmax = IMX585_CROP_VMAX(1504),
+		.min_vmax = IMX585_CROP_VMAX(1504),
+		.crop = {
+			.left = 0,
+			.top = 0,
+			.width = IMX585_PIXEL_ARRAY_WIDTH,
+			.height = 1504,
+		},
+		.reg_list = {
+			.num_of_regs = ARRAY_SIZE(mode_3840x1504_regs_12bit),
+			.regs = mode_3840x1504_regs_12bit,
 		},
 	},
 	{
@@ -687,6 +1185,7 @@ static struct imx585_mode supported_modes[] = {
 		.height = IMX585_PIXEL_ARRAY_HEIGHT + 2 * IMX585_PIXEL_ARRAY_TOP_4K,/* 2200 */
 		.hmax_div = 1,
 		.min_hmax = 550,
+		.base_vmax = IMX585_VMAX_DEFAULT,
 		.min_vmax = IMX585_VMAX_DEFAULT,
 		.crop = {
 			.left = 0,
@@ -707,6 +1206,10 @@ static const u32 codes_normal[] = {
 	MEDIA_BUS_FMT_SGRBG12_1X12,
 	MEDIA_BUS_FMT_SGBRG12_1X12,
 	MEDIA_BUS_FMT_SBGGR12_1X12,
+	MEDIA_BUS_FMT_SRGGB10_1X10,
+	MEDIA_BUS_FMT_SGRBG10_1X10,
+	MEDIA_BUS_FMT_SGBRG10_1X10,
+	MEDIA_BUS_FMT_SBGGR10_1X10,
 };
 
 static const u32 codes_clearhdr[] = {
@@ -818,6 +1321,35 @@ static inline struct imx585 *to_imx585(struct v4l2_subdev *sd)
 	return container_of(sd, struct imx585, sd);
 }
 
+static bool imx585_format_is_10bit(u32 code)
+{
+	switch (code) {
+	case MEDIA_BUS_FMT_SRGGB10_1X10:
+	case MEDIA_BUS_FMT_SGRBG10_1X10:
+	case MEDIA_BUS_FMT_SGBRG10_1X10:
+	case MEDIA_BUS_FMT_SBGGR10_1X10:
+		return true;
+	default:
+		return false;
+	}
+}
+
+static int imx585_apply_normal_bit_depth_regs(struct imx585 *imx585, u32 code)
+{
+	if (imx585_format_is_10bit(code)) {
+		int ret = cci_write(imx585->regmap, CCI_REG8(0x3022), 0x00, NULL); /* ADBIT 10-bit */
+		if (!ret)
+			ret = cci_write(imx585->regmap, CCI_REG8(0x3023), 0x00, NULL); /* MDBIT 10-bit */
+		if (!ret)
+			ret = cci_write(imx585->regmap, CCI_REG8(0x3930), 0x66, NULL); /* DUR[15:8] */
+		if (!ret)
+			ret = cci_write(imx585->regmap, CCI_REG8(0x3931), 0x00, NULL); /* DUR[7:0] */
+		return ret;
+	}
+
+	return 0;
+}
+
 static int imx585_update_test_pattern(struct imx585 *imx585, u32 pattern_index)
 {
 	int ret;
@@ -851,18 +1383,18 @@ static inline void get_mode_table(struct imx585 *imx585, unsigned int code,
 	if (imx585->mono) {
 		/* --- Mono paths ---
 		 * Y16 only valid in Clear HDR. 4K-only (binning unusable).
-		 * Use the 16-bit-specific mode entry [2] for the buffer-with-
+		 * Use the 16-bit-specific mode entry [20] for the buffer-with-
 		 * OB layout. Y12 routes to the 12-bit modes. */
 		if (code == MEDIA_BUS_FMT_Y16_1X16 && imx585->clear_hdr) {
-			*mode_list = &supported_modes[2];     /* 4K 16-bit */
+			*mode_list = &supported_modes[20];    /* 4K 16-bit */
 			*num_modes = 1;
 		} else if (code == MEDIA_BUS_FMT_Y12_1X12) {
 			if (imx585->clear_hdr) {
-				*mode_list = &supported_modes[1]; /* 4K 12-bit */
+				*mode_list = &supported_modes[10]; /* 4K 12-bit */
 				*num_modes = 1;
 			} else {
-				*mode_list = supported_modes;     /* binned + 4K 12-bit */
-				*num_modes = 2;
+				*mode_list = supported_modes;
+				*num_modes = 20;
 			}
 		}
 	} else {
@@ -870,33 +1402,36 @@ static inline void get_mode_table(struct imx585 *imx585, unsigned int code,
 		switch (code) {
 		/* 16-bit (Clear HDR linear, only valid when WDR=1).
 		 *
-		 * 4K-only — binned Clear HDR is unusable. Routes to mode [2]
-		 * which advertises height = active + 20 OB rows so the buffer
-		 * covers the OB region the sensor still emits in this format.
-		 */
+			 * 4K-only — binned Clear HDR is unusable. Routes to mode [20]
+			 * which advertises height = active + 20 OB rows so the buffer
+			 * covers the OB region the sensor still emits in this format.
+			 */
 		case MEDIA_BUS_FMT_SRGGB16_1X16:
 		case MEDIA_BUS_FMT_SGRBG16_1X16:
 		case MEDIA_BUS_FMT_SGBRG16_1X16:
 		case MEDIA_BUS_FMT_SBGGR16_1X16:
-			*mode_list = &supported_modes[2];     /* 4K 16-bit */
+			*mode_list = &supported_modes[20];    /* 4K 16-bit */
 			*num_modes = 1;
 			break;
 
 		/* 12-bit. Per AppNote §2 page 6, the 1920×1080 binning mode in
 		 * Clear HDR only supports 16-bit output — 12-bit binned HDR is
 		 * not a valid sensor configuration and the part returns BLC if
-		 * asked. Skip the binning entry (index 0) when WDR=1, leaving
-		 * only the 4K all-pixel mode at index 1. */
+		 * asked. WDR=1 therefore exposes only the 4K all-pixel mode. */
 		case MEDIA_BUS_FMT_SRGGB12_1X12:
 		case MEDIA_BUS_FMT_SGRBG12_1X12:
 		case MEDIA_BUS_FMT_SGBRG12_1X12:
 		case MEDIA_BUS_FMT_SBGGR12_1X12:
+		case MEDIA_BUS_FMT_SRGGB10_1X10:
+		case MEDIA_BUS_FMT_SGRBG10_1X10:
+		case MEDIA_BUS_FMT_SGBRG10_1X10:
+		case MEDIA_BUS_FMT_SBGGR10_1X10:
 			if (imx585->clear_hdr) {
-				*mode_list = &supported_modes[1];     /* 4K 12-bit only */
+				*mode_list = &supported_modes[10];     /* 4K 12-bit only */
 				*num_modes = 1;
 			} else {
-				*mode_list = supported_modes;         /* binned + 4K */
-				*num_modes = 2;                       /* exclude 16-bit entry */
+				*mode_list = supported_modes;
+				*num_modes = 20; /* exclude 16-bit entry */
 			}
 			break;
 		default:
@@ -960,7 +1495,7 @@ static void imx585_update_hmax(struct imx585 *imx585)
 
 	for (i = 0; i < ARRAY_SIZE(supported_modes); ++i) {
 		u32 h = factor / supported_modes[i].hmax_div;
-		u32 v = IMX585_VMAX_DEFAULT * hdr_scale;
+		u32 v = supported_modes[i].base_vmax * hdr_scale;
 
 		supported_modes[i].min_hmax = h;
 		supported_modes[i].min_vmax = v;
@@ -1175,16 +1710,16 @@ static int imx585_set_ctrl(struct v4l2_ctrl *ctrl)
 		if (ret)
 			dev_err_ratelimited(imx585->clientdev, "VMAX write failed (%d)\n", ret);
 		break;
-	case V4L2_CID_IMX585_HMAX:
-		dev_info(imx585->clientdev, "HMAX=%u\n", ctrl->val);
-		if (ctrl->val == 0)
-            break; 
-		ret = cci_write(imx585->regmap, IMX585_REG_HMAX, ctrl->val, NULL);
-		if (ret)
-			dev_err_ratelimited(imx585->clientdev, "HMAX write failed (%d)\n", ret);
-		break;
-	case V4L2_CID_WIDE_DYNAMIC_RANGE: /* Handled above */
-		break;
+		case V4L2_CID_IMX585_HMAX:
+			dev_info(imx585->clientdev, "HMAX=%u\n", ctrl->val);
+			if (ctrl->val == 0)
+	            break; 
+			ret = cci_write(imx585->regmap, IMX585_REG_HMAX, ctrl->val, NULL);
+			if (ret)
+				dev_err_ratelimited(imx585->clientdev, "HMAX write failed (%d)\n", ret);
+			break;
+		case V4L2_CID_WIDE_DYNAMIC_RANGE: /* Handled above */
+			break;
 	case V4L2_CID_IMX585_HDR_DATASEL_TH: {
 		const u16 *th = (const u16 *)ctrl->p_new.p;
 
@@ -1714,6 +2249,12 @@ static int imx585_enable_streams(struct v4l2_subdev *sd,
 					  ARRAY_SIZE(common_normal_mode), NULL);
 		if (ret) {
 			dev_err(imx585->clientdev, "Failed to set normal regs\n");
+			goto err_rpm_put;
+		}
+
+		ret = imx585_apply_normal_bit_depth_regs(imx585, fmt->code);
+		if (ret) {
+			dev_err(imx585->clientdev, "Failed to set normal bit depth regs\n");
 			goto err_rpm_put;
 		}
 	}
