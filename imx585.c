@@ -801,10 +801,11 @@ static struct imx585_mode supported_modes[] = {
 		.base_vmax = IMX585_VMAX_DEFAULT,
 		.min_vmax = IMX585_VMAX_DEFAULT,
 		.crop = {
+			/* sensor window before 2x2 binning: 2160 rows at row 0 */
 			.left = 0,
 			.top = 0,
-			.width = IMX585_PIXEL_ARRAY_WIDTH / 2,
-			.height = IMX585_PIXEL_ARRAY_HEIGHT / 2,
+			.width = IMX585_PIXEL_ARRAY_WIDTH,
+			.height = 2160,
 		},
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_1080_regs_12bit),
@@ -820,10 +821,11 @@ static struct imx585_mode supported_modes[] = {
 		.base_vmax = IMX585_CROP_VMAX(2076),
 		.min_vmax = IMX585_CROP_VMAX(2076),
 		.crop = {
+			/* sensor window before 2x2 binning: 2076 rows at row 42 */
 			.left = 0,
-			.top = 0,
-			.width = IMX585_PIXEL_ARRAY_WIDTH / 2,
-			.height = 1038,
+			.top = 42,
+			.width = IMX585_PIXEL_ARRAY_WIDTH,
+			.height = 2076,
 		},
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_1920x1038_regs_12bit),
@@ -839,10 +841,11 @@ static struct imx585_mode supported_modes[] = {
 		.base_vmax = IMX585_CROP_VMAX(2024),
 		.min_vmax = IMX585_CROP_VMAX(2024),
 		.crop = {
+			/* sensor window before 2x2 binning: 2024 rows at row 68 */
 			.left = 0,
-			.top = 0,
-			.width = IMX585_PIXEL_ARRAY_WIDTH / 2,
-			.height = 1012,
+			.top = 68,
+			.width = IMX585_PIXEL_ARRAY_WIDTH,
+			.height = 2024,
 		},
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_1920x1012_regs_12bit),
@@ -858,10 +861,11 @@ static struct imx585_mode supported_modes[] = {
 		.base_vmax = IMX585_CROP_VMAX(1920),
 		.min_vmax = IMX585_CROP_VMAX(1920),
 		.crop = {
+			/* sensor window before 2x2 binning: 1920 rows at row 120 */
 			.left = 0,
-			.top = 0,
-			.width = IMX585_PIXEL_ARRAY_WIDTH / 2,
-			.height = 960,
+			.top = 120,
+			.width = IMX585_PIXEL_ARRAY_WIDTH,
+			.height = 1920,
 		},
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_1920x960_regs_12bit),
@@ -877,10 +881,11 @@ static struct imx585_mode supported_modes[] = {
 		.base_vmax = IMX585_CROP_VMAX(1744),
 		.min_vmax = IMX585_CROP_VMAX(1744),
 		.crop = {
+			/* sensor window before 2x2 binning: 1744 rows at row 208 */
 			.left = 0,
-			.top = 0,
-			.width = IMX585_PIXEL_ARRAY_WIDTH / 2,
-			.height = 872,
+			.top = 208,
+			.width = IMX585_PIXEL_ARRAY_WIDTH,
+			.height = 1744,
 		},
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_1920x872_regs_12bit),
@@ -896,10 +901,11 @@ static struct imx585_mode supported_modes[] = {
 		.base_vmax = IMX585_CROP_VMAX(1728),
 		.min_vmax = IMX585_CROP_VMAX(1728),
 		.crop = {
+			/* sensor window before 2x2 binning: 1728 rows at row 216 */
 			.left = 0,
-			.top = 0,
-			.width = IMX585_PIXEL_ARRAY_WIDTH / 2,
-			.height = 864,
+			.top = 216,
+			.width = IMX585_PIXEL_ARRAY_WIDTH,
+			.height = 1728,
 		},
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_1920x864_regs_12bit),
@@ -915,10 +921,11 @@ static struct imx585_mode supported_modes[] = {
 		.base_vmax = IMX585_CROP_VMAX(1632),
 		.min_vmax = IMX585_CROP_VMAX(1632),
 		.crop = {
+			/* sensor window before 2x2 binning: 1632 rows at row 264 */
 			.left = 0,
-			.top = 0,
-			.width = IMX585_PIXEL_ARRAY_WIDTH / 2,
-			.height = 816,
+			.top = 264,
+			.width = IMX585_PIXEL_ARRAY_WIDTH,
+			.height = 1632,
 		},
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_1920x816_regs_12bit),
@@ -934,10 +941,11 @@ static struct imx585_mode supported_modes[] = {
 		.base_vmax = IMX585_CROP_VMAX(1608),
 		.min_vmax = IMX585_CROP_VMAX(1608),
 		.crop = {
+			/* sensor window before 2x2 binning: 1608 rows at row 276 */
 			.left = 0,
-			.top = 0,
-			.width = IMX585_PIXEL_ARRAY_WIDTH / 2,
-			.height = 804,
+			.top = 276,
+			.width = IMX585_PIXEL_ARRAY_WIDTH,
+			.height = 1608,
 		},
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_1920x804_regs_12bit),
@@ -953,10 +961,11 @@ static struct imx585_mode supported_modes[] = {
 		.base_vmax = IMX585_CROP_VMAX(1536),
 		.min_vmax = IMX585_CROP_VMAX(1536),
 		.crop = {
+			/* sensor window before 2x2 binning: 1536 rows at row 312 */
 			.left = 0,
-			.top = 0,
-			.width = IMX585_PIXEL_ARRAY_WIDTH / 2,
-			.height = 768,
+			.top = 312,
+			.width = IMX585_PIXEL_ARRAY_WIDTH,
+			.height = 1536,
 		},
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_1920x768_regs_12bit),
@@ -972,10 +981,11 @@ static struct imx585_mode supported_modes[] = {
 		.base_vmax = IMX585_CROP_VMAX(1504),
 		.min_vmax = IMX585_CROP_VMAX(1504),
 		.crop = {
+			/* sensor window before 2x2 binning: 1504 rows at row 328 */
 			.left = 0,
-			.top = 0,
-			.width = IMX585_PIXEL_ARRAY_WIDTH / 2,
-			.height = 752,
+			.top = 328,
+			.width = IMX585_PIXEL_ARRAY_WIDTH,
+			.height = 1504,
 		},
 		.reg_list = {
 			.num_of_regs = ARRAY_SIZE(mode_1920x752_regs_12bit),
@@ -1010,8 +1020,9 @@ static struct imx585_mode supported_modes[] = {
 		.base_vmax = IMX585_CROP_VMAX(2076),
 		.min_vmax = IMX585_CROP_VMAX(2076),
 		.crop = {
+			/* sensor window: 2076 rows at row 42 (PIX_VST 54) */
 			.left = 0,
-			.top = 0,
+			.top = 42,
 			.width = IMX585_PIXEL_ARRAY_WIDTH,
 			.height = 2076,
 		},
@@ -1029,8 +1040,9 @@ static struct imx585_mode supported_modes[] = {
 		.base_vmax = IMX585_CROP_VMAX(2024),
 		.min_vmax = IMX585_CROP_VMAX(2024),
 		.crop = {
+			/* sensor window: 2024 rows at row 68 (PIX_VST 80) */
 			.left = 0,
-			.top = 0,
+			.top = 68,
 			.width = IMX585_PIXEL_ARRAY_WIDTH,
 			.height = 2024,
 		},
@@ -1048,8 +1060,9 @@ static struct imx585_mode supported_modes[] = {
 		.base_vmax = IMX585_CROP_VMAX(1920),
 		.min_vmax = IMX585_CROP_VMAX(1920),
 		.crop = {
+			/* sensor window: 1920 rows at row 120 (PIX_VST 132) */
 			.left = 0,
-			.top = 0,
+			.top = 120,
 			.width = IMX585_PIXEL_ARRAY_WIDTH,
 			.height = 1920,
 		},
@@ -1067,8 +1080,9 @@ static struct imx585_mode supported_modes[] = {
 		.base_vmax = IMX585_CROP_VMAX(1744),
 		.min_vmax = IMX585_CROP_VMAX(1744),
 		.crop = {
+			/* sensor window: 1744 rows at row 208 (PIX_VST 220) */
 			.left = 0,
-			.top = 0,
+			.top = 208,
 			.width = IMX585_PIXEL_ARRAY_WIDTH,
 			.height = 1744,
 		},
@@ -1086,8 +1100,9 @@ static struct imx585_mode supported_modes[] = {
 		.base_vmax = IMX585_CROP_VMAX(1728),
 		.min_vmax = IMX585_CROP_VMAX(1728),
 		.crop = {
+			/* sensor window: 1728 rows at row 216 (PIX_VST 228) */
 			.left = 0,
-			.top = 0,
+			.top = 216,
 			.width = IMX585_PIXEL_ARRAY_WIDTH,
 			.height = 1728,
 		},
@@ -1105,8 +1120,9 @@ static struct imx585_mode supported_modes[] = {
 		.base_vmax = IMX585_CROP_VMAX(1632),
 		.min_vmax = IMX585_CROP_VMAX(1632),
 		.crop = {
+			/* sensor window: 1632 rows at row 264 (PIX_VST 276) */
 			.left = 0,
-			.top = 0,
+			.top = 264,
 			.width = IMX585_PIXEL_ARRAY_WIDTH,
 			.height = 1632,
 		},
@@ -1124,8 +1140,9 @@ static struct imx585_mode supported_modes[] = {
 		.base_vmax = IMX585_CROP_VMAX(1608),
 		.min_vmax = IMX585_CROP_VMAX(1608),
 		.crop = {
+			/* sensor window: 1608 rows at row 276 (PIX_VST 288) */
 			.left = 0,
-			.top = 0,
+			.top = 276,
 			.width = IMX585_PIXEL_ARRAY_WIDTH,
 			.height = 1608,
 		},
@@ -1143,8 +1160,9 @@ static struct imx585_mode supported_modes[] = {
 		.base_vmax = IMX585_CROP_VMAX(1536),
 		.min_vmax = IMX585_CROP_VMAX(1536),
 		.crop = {
+			/* sensor window: 1536 rows at row 312 (PIX_VST 324) */
 			.left = 0,
-			.top = 0,
+			.top = 312,
 			.width = IMX585_PIXEL_ARRAY_WIDTH,
 			.height = 1536,
 		},
@@ -1162,8 +1180,9 @@ static struct imx585_mode supported_modes[] = {
 		.base_vmax = IMX585_CROP_VMAX(1504),
 		.min_vmax = IMX585_CROP_VMAX(1504),
 		.crop = {
+			/* sensor window: 1504 rows at row 328 (PIX_VST 340) */
 			.left = 0,
-			.top = 0,
+			.top = 328,
 			.width = IMX585_PIXEL_ARRAY_WIDTH,
 			.height = 1504,
 		},
