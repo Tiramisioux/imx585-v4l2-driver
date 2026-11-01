@@ -3783,26 +3783,31 @@ static const struct v4l2_ctrl_config imx585_cfg_binning = {
 	.ops = &imx585_ctrl_ops, .id = V4L2_CID_IMX585_BINNING,
 	.name = "Mode Binning", .type = V4L2_CTRL_TYPE_INTEGER,
 	.min = 1, .max = 2, .step = 1, .def = 1,
+	.flags = V4L2_CTRL_FLAG_READ_ONLY,
 };
 static const struct v4l2_ctrl_config imx585_cfg_crop_left = {
 	.ops = &imx585_ctrl_ops, .id = V4L2_CID_IMX585_CROP_LEFT,
 	.name = "Mode Crop Left", .type = V4L2_CTRL_TYPE_INTEGER,
 	.min = 0, .max = IMX585_PIXEL_ARRAY_WIDTH, .step = 1, .def = 0,
+	.flags = V4L2_CTRL_FLAG_READ_ONLY,
 };
 static const struct v4l2_ctrl_config imx585_cfg_crop_top = {
 	.ops = &imx585_ctrl_ops, .id = V4L2_CID_IMX585_CROP_TOP,
 	.name = "Mode Crop Top", .type = V4L2_CTRL_TYPE_INTEGER,
 	.min = 0, .max = IMX585_PIXEL_ARRAY_HEIGHT, .step = 1, .def = 0,
+	.flags = V4L2_CTRL_FLAG_READ_ONLY,
 };
 static const struct v4l2_ctrl_config imx585_cfg_crop_width = {
 	.ops = &imx585_ctrl_ops, .id = V4L2_CID_IMX585_CROP_WIDTH,
 	.name = "Mode Crop Width", .type = V4L2_CTRL_TYPE_INTEGER,
 	.min = 0, .max = IMX585_PIXEL_ARRAY_WIDTH, .step = 1, .def = IMX585_PIXEL_ARRAY_WIDTH,
+	.flags = V4L2_CTRL_FLAG_READ_ONLY,
 };
 static const struct v4l2_ctrl_config imx585_cfg_crop_height = {
 	.ops = &imx585_ctrl_ops, .id = V4L2_CID_IMX585_CROP_HEIGHT,
 	.name = "Mode Crop Height", .type = V4L2_CTRL_TYPE_INTEGER,
 	.min = 0, .max = IMX585_PIXEL_ARRAY_HEIGHT, .step = 1, .def = IMX585_PIXEL_ARRAY_HEIGHT,
+	.flags = V4L2_CTRL_FLAG_READ_ONLY,
 };
 
 static const struct v4l2_ctrl_config imx585_cfg_shr = {
@@ -3874,11 +3879,6 @@ static int imx585_init_controls(struct imx585 *imx585)
 	imx585->crop_top_ctrl    = v4l2_ctrl_new_custom(hdl, &imx585_cfg_crop_top, NULL);
 	imx585->crop_width_ctrl  = v4l2_ctrl_new_custom(hdl, &imx585_cfg_crop_width, NULL);
 	imx585->crop_height_ctrl = v4l2_ctrl_new_custom(hdl, &imx585_cfg_crop_height, NULL);
-	imx585->binning_ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
-	imx585->crop_left_ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
-	imx585->crop_top_ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
-	imx585->crop_width_ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
-	imx585->crop_height_ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 
 	v4l2_ctrl_new_std_menu_items(hdl, &imx585_ctrl_ops,
 				     V4L2_CID_TEST_PATTERN,
