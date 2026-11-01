@@ -34,7 +34,7 @@ sudo apt install linux-headers dkms git
 Clone the repository to your local machine and navigate to the cloned directory:
 
 ```bash
-git clone https://github.com/will127534/imx585-v4l2-driver.git
+git clone -b cinemate-port https://github.com/Tiramisioux/imx585-v4l2-driver.git
 cd imx585-v4l2-driver/
 ```
 
@@ -51,7 +51,7 @@ To compile and install the kernel driver, execute the provided installation scri
 Edit the boot configuration file using the following command:
 
 ```bash
-sudo nano /boot/config.txt
+sudo nano /boot/firmware/config.txt
 ```
 
 In the opened editor, locate the line containing `camera_auto_detect` and change its value to `0`. Then, add the line `dtoverlay=imx585`. So, it will look like this:
