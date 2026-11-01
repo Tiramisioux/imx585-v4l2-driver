@@ -10,3 +10,6 @@
 Module.symvers
 modules.order
 .module-common.o
+
+# tools/ are Python
+__pycache__/
